@@ -77,13 +77,21 @@ Visit %>%
 #Filtering on Covid test given, test date, and receipt of confirmatory PCR
 COVIDResults %>%
   filter(Lab.Result.Interpretation=="POSITIVE" | Lab.Result.Interpretation=="NEGATIVE") %>%
-  filter(Test_date >= "2020-03-01")%>%    
-  filter(Confirmatory.PCR=="1") -> COVIDResults     #959750                        
+  filter(Test_date >= "2020-03-01") -> COVIDResults     #959750                        
 
-COVIDResults <- COVIDResults %>%
+#Marking all entries that got a confirmatory PCR test
+COVIDResults_conf<-COVIDResults%>%
+  filter(Confirmatory.PCR=="1")%>%
+  select(PatientID, Confirmatory.PCR)%>%
+  distinct()
+
+COVIDResults_confPCR<-left_join(COVIDResults_conf, COVIDResults, by="PatientID")
+
+COVIDResults_confPCR <- COVIDResults_confPCR %>%
   group_by(PatientID) %>%
   arrange(Test_date, .by_group=TRUE)%>%
-  mutate(Visit = 1:n())
+  mutate(Visit = 1:n())%>%
+  select(-Confirmatory.PCR.x)
 #Some pts got PCR + antigen tests on the same day with same VistID so don't pull out distinct Visit IDs 
 
 #Remove duplicates in Visit data
@@ -508,7 +516,7 @@ Visit.demo$racecat <- if_else(Visit.demo$racecat=="Other/Unknown" & !(is.na(Visi
 rm(updated.race, updatedrace_orig_race_Oct)
 
 #Remove duplicates in COVID results
-COVIDResults<- distinct(COVIDResults) #959750
+COVIDResults_confPCR<- distinct(COVIDResults_confPCR) #3006164
 
 #Merge Visit data with covid results to get patient IDs for all results 
 merged.data1 <- inner_join(COVIDResults, Visit.demo, by="PatientID") #innerjoin because out of state covid results need to be filtered out (6994684)
@@ -543,15 +551,57 @@ CMD_ID<-CMD_ID%>%
   distinct() #14573
 
 #Taking Patient IDs from the merged data
-merged.data2%>%
-  select(PatientID, Lab.Result.Interpretation, Result.PCR)%>%
+COVIDResults_confPCR%>%
+  select(PatientID, Lab.Result.Interpretation, Result.PCR, Confirmatory.PCR.y)%>%
   distinct()->listIDs
 
 #Merged data 3 includes Covid results and lab data
-merged.data3<-inner_join(CMD_ID, listIDs, by="PatientID") #10243 matches
+merged.data3<-inner_join(CMD_ID, COVIDResults_confPCR, by="PatientID") #10243 matches
 
 merged.data3<-merged.data3%>%
   mutate(antigen_result=case_when(Lab.Result.Interpretation=="NEGATIVE" & Result.PCR=="NEGATIVE" ~ "TN",
                                   Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="POSITIVE" ~ "TP",
                                   Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="NEGATIVE" ~ "FP",
                                   Lab.Result.Interpretation=="NEGATIVE" & Result.PCR=="POSITIVE" ~ "FN"))
+
+#Filling in symptomatic visits if yes or no was entered for a visit
+PCR_results<-merged.data3%>%
+  filter(Test=="SARS CoV 2 E Gene"|Test=="SARS CoV 2 ORF 1 Gene")%>%
+  mutate_at(vars(Symptomatic), funs('Symptomatic_old' = na_if(., ''))) %>% 
+  # set grouping for following operations
+  group_by(PatientID, Test_date) %>% 
+  # for added columns, fill values downwards and upwards within each group
+  fill(Symptomatic) %>% 
+  fill(Symptomatic, .direction = 'up') %>%
+  # reinsert empty strings for NAs
+  mutate_at(vars(Symptomatic), funs(coalesce(., factor(NA))))%>%
+  ungroup()%>%
+  distinct()
+
+Antigen_results<-merged.data3%>%
+  filter(Test=="COVID-19 Spike Total Ab")%>%
+  mutate_at(vars(Symptomatic), funs('Symptomatic_old' = na_if(., ''))) %>% 
+  # set grouping for following operations
+  group_by(PatientID, Test_date) %>% 
+  # for added columns, fill values downwards and upwards within each group
+  fill(Symptomatic) %>% 
+  fill(Symptomatic, .direction = 'up') %>%
+  # reinsert empty strings for NAs
+  mutate_at(vars(Symptomatic), funs(coalesce(., factor(NA))))%>%
+  ungroup()%>%
+  distinct()
+
+PCR_IDs<-PCR_results%>%
+  select(PatientID)%>%
+  distinct()
+
+Antigen_IDs<-Antigen_results%>%
+  select(PatientID)%>%
+  distinct()
+
+merge<-inner_join(PCR_IDs, Antigen_IDs, by="PatientID")
+
+look<-lab_data%>%
+  filter(LabPatientID=="CMD6420116")
+
+###Only 20 IDs have CT values for both PCR and antigen results?!
