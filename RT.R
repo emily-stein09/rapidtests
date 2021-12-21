@@ -519,7 +519,7 @@ rm(updated.race, updatedrace_orig_race_Oct)
 COVIDResults_confPCR<- distinct(COVIDResults_confPCR) #3006164
 
 #Merge Visit data with covid results to get patient IDs for all results 
-merged.data1 <- inner_join(COVIDResults, Visit.demo, by="PatientID") #innerjoin because out of state covid results need to be filtered out (6994684)
+merged.data1 <- inner_join(COVIDResults_confPCR, Visit.demo, by="PatientID") #innerjoin because out of state covid results need to be filtered out (6994684)
 
 #Remove duplicates from Chief Complaints
 ChiefComplaint<-distinct(ChiefComplaint)
@@ -605,3 +605,19 @@ look<-lab_data%>%
   filter(LabPatientID=="CMD6420116")
 
 ###Only 20 IDs have CT values for both PCR and antigen results?!
+
+PCR_results<-lab_data%>%
+  filter(Test=="SARS CoV 2 E Gene"|Test=="SARS CoV 2 ORF 1 Gene")
+
+Antigen_results<-lab_data%>%
+  filter(Test=="COVID-19 Spike Total Ab")
+
+merge<-inner_join(Antigen_results, PCR_results, by="LabPatientID")
+
+merge2<-inner_join(merge, CUNY_Labs, by="LabPatientID")
+
+
+merge2<-merge2%>%
+  select(PatientID)
+
+merge3<-inner_join(COVIDResults_confPCR, merge2, by="PatientID")
