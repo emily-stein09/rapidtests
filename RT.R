@@ -706,7 +706,8 @@ merged.data1<-merged.data1%>%
                                   Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="POSITIVE" ~ "TP",
                                   Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="NEGATIVE" ~ "FP",
                                   Lab.Result.Interpretation=="NEGATIVE" & Result.PCR=="POSITIVE" ~ "FN"))
-
+###NEXT STEP###
+#Create date blocks and look at things over time
 #merge vaccine and visit data
 #merged.data2 <- left_join(merged.data1, ChiefComplaint, by="VisitID") #9226028
 
