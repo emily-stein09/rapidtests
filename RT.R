@@ -38,16 +38,165 @@ ChiefComplaint  <- read_delim("D:/12-15-2021/CUNY_ChiefComplaint.csv","|", escap
 CUNY_Labs <- read_delim("D:/12-15-2021/CUNY_Labs.csv", delim="|",escape_double = FALSE, trim_ws = TRUE)
 
 
-#Rename vars col_character
+COVIDResults$Test_date <- as.Date(COVIDResults$Test_date, format="%m/%d/%Y")
+
+ChiefComplaint$Vax_date <- as.Date(ChiefComplaint$Vax_date, format="%m/%d/%Y")
+lab_data$collection_date<-as.Date(lab_data$`Collection Date`, format="%Y/%m/%d")
+
+####Cleaning chief complaints####
+#on hold for now. main issues: vaccination status will not be able to link to date since visit dates are not reliable.
+#If really interested in future, perhaps we could try to link vaccination dates to lab dates
 ChiefComplaint <- as.data.table(ChiefComplaint) 
 
+#Renaming chief complaints variables and changing the character string to all upper case
 ChiefComplaint %>% 
-  rename(Complaint = `Chief Complaint`,
+  rename(Chief.Complaint = `Chief Complaint`,
          Vax_date = `Adjusted Visit Date`,
          Vax_rec = `COVID-19 Vaccine?`,
          Vax_manu = `Which vaccine did you receive?`,
-         Fully_vax = `> 2 weeks since final dose?`) -> ChiefComplaint
+         Fully_vax = `> 2 weeks since final dose?`)%>%
+  mutate_if(is.character, str_to_upper)-> ChiefComplaint
 
+#Generating lists of chosen symptoms
+chills_terms=c("CHILLS", "CHILLS (WITHOUT FEVER)", "CHILLS WITH FEVER", 
+               "CHILLS WITHOUT FEVER", "FEVER AND CHILLS", "FEVER CHILLS", 
+               "FEVER WITH CHILLS")
+cough_terms=c("COUGH", "COUGHING BLOOD", "COUGH HEADACHE", "COUGH IN ADULT", "COUGH IN ADULT PATIENT",
+              "COUGH WITH HEMOPTYSIS", "COUGH WITH SPUTUM", "COUGH, PERSISTENT", "COUGHING", "DRY COUGH", "PERSISTENT COUGH",
+              "PRODUCTIVE COUGH", "UPPER AIRWAY COUGH SYNDROME", "UPPER RESPIRATORY INFECTION WITH COUGH AND CONGESTION", 
+              "URI WITH COUGH AND CONGESTION", "VIRAL URI WITH COUGH", "COUGH", "VIRAL UPPER RESPIRATORY TRACT INFECTION WITH COUGH", 
+              "COUGH IN ADULT", "COUGH IN PEDIATRIC PATIENT", "COUGHING", "PRODUCTIVE COUGH",
+              "UPPER AIRWAY COUGH SYNDROME", "URI WITH COUGH AND CONGESTION")
+fever_terms=c("FEVER", 
+              "FEVER CHILLS", "FEVER IN PEDIATRIC PATIENT", "CHILLS WITH FEVER",
+              "FEVER IN ADULT", "FEVER, UNSPECIFIED FEVER CAUSE", "FEVER IN CHILD", 
+              "FEVER OF UNKOWN ORIGIN (FUO)", "CHILLS WITH FEVER", "FEVER AND CHILLS", 
+              "FEVER IN PEDIATRIC PATIENT", "FEVER, UNSPECIFIED",
+              "FEELS FEVERISH", "FEVER IN ADULT", "FEVER OF UNKNOWN ORIGIN",
+              "LOW GRADE FEVER", "HIGH FEVER", "INTERMITTENT FEVER", "RECENT UNEXPLAINED FEVER",
+              "PERSISTENT FEVER")
+fatigue_terms=c("FATIGUE", "TIREDNESS","MALAISE AND FATIGUE", 
+                "FATIGUE, UNSPECIFIED TYPE", "OTHER FATIGUE", "TIRED")
+body.ache_terms=c("MYALGIAS", "MYALGIA", "BODY ACHES","MUSCLE ACHE", "GENERALIZED BODY ACHES", 
+                  "MUSCLE ACHE", "MUSCLE SORENESS", "MYALGIA, UNSPECIFIED SITE", "MUSCLE ACHE OF EXTREMITY")
+headache_terms=c("ACUTE HEADACHE", "HEADACHE", "ACUTE INTRACTABLE HEADACHE, UNSPECIFIED HEADACHE TYPE", 
+                 "ACUTE NON INTRACTABLE TENSION-TYPE HEADACHE", "COUGH HEADACHE",
+                 "NEW PERSISTENT DAILY HEADACHE", "OTHER HEADACHE SYNDROME", "HEADACHE ABOVE THE EYE REGION")
+taste.smell_terms=c("ABNORMAL SENSE OF TASTE", "ABNORMAL SMELL", "ALTERED TASTE", 
+                    "DECREASED SENSE OF SMELL", "DECREASED SENSE OF TASTE", "DISTURBANCE OF SMELL", 
+                    "DISTURBANCE OF SMELL AND TASTE", "BITTER TASTE", "LOSS OF SMELL", "LOSS OF TASTE", 
+                    "SENSE OF SMELL ALTERED", "SMELL DISTURBANCE", "SMELL OR TASTE SENSATION DISTURBANCE", 
+                    "TASTE ABSENT", "TASTE IMPAIRMENT", "UNSPECIFIED DISTURBANCES OF SMELL AND TASTE", "SMELL, IMPAIRED")
+sore.throat_terms=c("ACUTE INFECTIVE PHARYNGITIS", "ACUTE NASOPHARYNGITIS", "ACUTE NASOPHARYNGITIS (COMMON COLD)", 
+                    "ACUTE NASOPHARYNGITIS [COMMON COLD]", "ACUTE PHARYNGITIS", "ACUTE PHARYNGITIS, UNSPECIFIED", 
+                    "ACUTE PHARYNGITIS, UNSPECIFIED ETIOLOGY",  "ACUTE SORE THROAT", "ACUTE VIRAL PHARYNGITIS",
+                    "EXUDATIVE PHARYNGITIS", "NASOPHARYNGITIS", "NASOPHARYNGITIS ACUTE", "PHARYNGITIS", "PHARYNGITIS, ACUTE",
+                    "RHINOPHARYNGITIS", "SORE THROAT", "SORE THROAT (VIRAL)", "SORE THROAT AND LARYNGITIS", 
+                    "VIRAL PHARYNGITIS", "VIRAL SORE THROAT")
+congestion.nose_terms=c("CHEST CONGESTION", "CONGESTION OF NASAL SINUS", "CONGESTION OF PARANASAL SINUS", 
+                        "CONGESTION OF RESPIRATORY TRACT", "CONGESTION OF UPPER AIRWAY", 
+                        "MILD NASAL CONGESTION", "NASAL CONGESTION", "NASAL CONGESTION WITH RHINORRHEA", 
+                        "NASAL SINUS CONGESTION", "NOSE CONGESTION", "PULMONARY CONGESTION", "RUNNY NOSE", 
+                        "SINUS CONGESTION", "STUFFY AND RUNNY NOSE", "UPPER RESPIRATORY INFECTION WITH COUGH AND CONGESTION", 
+                        "URI WITH COUGH AND CONGESTION")
+nausea.vomit_terms=c("ABDOMINAL PAIN, VOMITING, AND DIARRHEA", "ACUTE VOMITING", "CYCLICAL VOMITING", 
+                     "HEMATEMESIS WITH NAUSEA", 
+                     "INTRACTABLE VOMITING", "INTRACTABLE VOMITING WITH NAUSEA",  
+                     "NAUSEA", "NAUSEA & VOMITING", "NAUSEA AND VOMITING",
+                     "NAUSEA ALONE", "NAUSEA AND VOMITING IN CHILD", "PROJECTILE VOMITING WITH NAUSEA", 
+                     "PERSISTENT VOMITING", "VOMITING", "NAUSEA (WITHOUT VOMITING)", "NAUSEA WITH VOMITING", 
+                     "NAUSEA WITHOUT VOMITING", "POST-TUSSIVE VOMITING", "VOMITING (WITHOUT DIARRHEA)", 
+                     "VOMITING AND DIARRHEA", "VOMITINGS", "VOMITING IN PEDIATRIC PATIENT", "VOMITING ALONE")
+diarrhea_terms=c("ABDOMINAL PAIN, VOMITING, AND DIARRHEA", "ACUTE DIARRHEA", "DIARRHEA", "DIARRHEA (WITHOUT VOMITING)", 
+                 "DIARRHEA IN ADULT PATIENT", "DIARRHEA, UNSPECIFIED", "NAUSEA VOMITING AND DIARRHEA", "INFECTIOUS DIARRHEA", 
+                 "VOMITING AND DIARRHEA")
+sob_terms=c("ABNORMALITY OF BREATHING", "BREATHING DIFFICULTY", "BREATHING PROBLEM", "CHEST PAIN MADE WORSE BY BREATHING", 
+            "CHEST PAIN ON BREATHING", "DIFFICULTY BREATHING", "EXERTIONAL SHORTNESS OF BREATH", "MILD SHORTNESS OF BREATH", 
+            "HEAVY BREATHING", "MILD SHORTNESS OF BREATH", "PAIN AGGRAVATED BY COUGHING AND DEEP BREATHING", "PAINFUL BREATHING", 
+            "FAST BREATHING", "SENSATION OF BREATHLESSNESS", "SHORTNESS OF BREATH", "SHORTNESS OF BREATH AT REST", "SOB (SHORTNESS OF BREATH)", 
+            "SOB (SHORTNESS OF BREATH) ON EXERTION", "SHORTNESS OF BREATH ON EXERTION", "SOBOE (SHORTNESS OF BREATH ON EXERTION)")
+chest.pain_terms=c("ACUTE CHEST PAIN", "ATYPICAL CHEST PAIN", "CHEST PAIN", "CHEST PAIN AT REST", "CHEST PAIN IN ADULT",
+                   "CHEST PAIN IN PATIENT YOUNGER THAN 17 YEARS", "CHEST PAIN MADE WORSE BY BREATHING", 
+                   "CHEST PAIN OF UNCERTAIN ETIOLOGY", "CHEST PAIN ON BREATHING", "CHEST PAIN ON EXERTION", 
+                   "CHEST PAIN ON RESPIRATION", "CHEST PAIN SYNDROME", "ATYPICAL CHEST PAIN, EXERTIONAL",  
+                   "CHEST PAIN, MID STERNAL", "CHEST PAIN, NON-CARDIAC", "CHEST PAIN, UNSPECIFIED", "CHEST PAIN, UNSPECIFIED TYPE", 
+                   "CHEST PRESSURE", "CHEST TIGHTNESS", "CHEST TIGHTNESS OR PRESSURE", "FEELING OF CHEST TIGHTNESS",
+                   "INTERMITTENT CHEST PAIN", "NONSPECIFIC CHEST PAIN", "OTHER CHEST PAIN", "PLEURITIC CHEST PAIN", 
+                   "SENSATION OF CHEST TIGHTNESS")
+confusion_terms=c("ALTERED MENTAL STATE", "ALTERED MENTAL STATUS", "ALTERED MENTAL STATUS, UNSPECIFIED", "CONFUSION")
+#Creating symptom categories out of the chief complaints dataset using the symptoms lists
+symptoms<-chiefcomppos%>%
+  mutate(chills = ifelse(Chief.Complaint %in% chills_terms|
+                           D1 %in% chills_terms|
+                           D2 %in% chills_terms|
+                           D3 %in% chills_terms|
+                           D4 %in% chills_terms, "Yes", NA),
+         cough = ifelse(Chief.Complaint %in% cough_terms|
+                          D1 %in% cough_terms|
+                          D2 %in% cough_terms|
+                          D3 %in% cough_terms|
+                          D4 %in% cough_terms, "Yes", NA),
+         fever= ifelse(Chief.Complaint %in% fever_terms|
+                         D1 %in% fever_terms|
+                         D2 %in% fever_terms|
+                         D3 %in% fever_terms|
+                         D4 %in% fever_terms, "Yes", NA),
+         fatigue = ifelse(Chief.Complaint %in% fatigue_terms|
+                            D1 %in% fatigue_terms|
+                            D2 %in% fatigue_terms|
+                            D3 %in% fatigue_terms|
+                            D4 %in% fatigue_terms, "Yes", NA),
+         body.ache = ifelse(Chief.Complaint %in% body.ache_terms|
+                              D1 %in% body.ache_terms|
+                              D2 %in% body.ache_terms|
+                              D3 %in% body.ache_terms|
+                              D4 %in% body.ache_terms, "Yes", NA),
+         headache = ifelse(Chief.Complaint %in% headache_terms|
+                             D1 %in% headache_terms|
+                             D2 %in% headache_terms|
+                             D3 %in% headache_terms|
+                             D4 %in% headache_terms, "Yes", NA),
+         taste.smell = ifelse(Chief.Complaint %in% taste.smell_terms|
+                                D1 %in% taste.smell_terms|
+                                D2 %in% taste.smell_terms|
+                                D3 %in% taste.smell_terms|
+                                D4 %in% taste.smell_terms, "Yes", NA),
+         sore.throat = ifelse(Chief.Complaint %in% sore.throat_terms|
+                                D1 %in% sore.throat_terms|
+                                D2 %in% sore.throat_terms|
+                                D3 %in% sore.throat_terms|
+                                D4 %in% sore.throat_terms, "Yes", NA),
+         congestion.nose = ifelse(Chief.Complaint %in% congestion.nose_terms|
+                                    D1 %in% congestion.nose_terms|
+                                    D2 %in% congestion.nose_terms|
+                                    D3 %in% congestion.nose_terms|
+                                    D4 %in% congestion.nose_terms, "Yes", NA),
+         nausea.vomit = ifelse(Chief.Complaint %in% nausea.vomit_terms|
+                                 D1 %in% nausea.vomit_terms|
+                                 D2 %in% nausea.vomit_terms|
+                                 D3 %in% nausea.vomit_terms|
+                                 D4 %in% nausea.vomit_terms, "Yes", NA),
+         diarrhea = ifelse(Chief.Complaint %in% diarrhea_terms|
+                             D1 %in% diarrhea_terms|
+                             D2 %in% diarrhea_terms|
+                             D3 %in% diarrhea_terms|
+                             D4 %in% diarrhea_terms, "Yes", NA),
+         sob = ifelse(Chief.Complaint %in% sob_terms|
+                        D1 %in% sob_terms|
+                        D2 %in% sob_terms|
+                        D3 %in% sob_terms|
+                        D4 %in% sob_terms, "Yes", NA),
+         chest.pain = ifelse(Chief.Complaint %in% chest.pain_terms|
+                               D1 %in% chest.pain_terms|
+                               D2 %in% chest.pain_terms|
+                               D3 %in% chest.pain_terms|
+                               D4 %in% chest.pain_terms, "Yes", NA),
+         confusion = ifelse(Chief.Complaint %in% confusion_terms|
+                              D1 %in% confusion_terms|
+                              D2 %in% confusion_terms|
+                              D3 %in% confusion_terms|
+                              D4 %in% confusion_terms, "Yes", NA))
+####CLEANING VISIT DATA####
 Visit <- as.data.table(Visit)
 
 Visit %>%
@@ -57,58 +206,8 @@ Visit %>%
          Facility_City =  `Facility City`,
          Facility_State =  `Facility State`) -> Visit
 
-COVIDResults <- as.data.table(COVIDResults)
-
-COVIDResults %>%
-  rename(Test_date = `Adjusted Visit Date`,
-         Lab.Result.Interpretation = `Lab Result Interpretation`,
-         Confirmatory.PCR=`Rapid Order Confirmatory PCR Ordered`,
-         Result.PCR=`Rapid Order Confirmatory PCR Result`,
-         Diff.Results=`Rapid Order Confirmatory PCR Incongruent Results`,
-         Order.Name= `Order Name`,
-         Symptomatic=`Rapid Order Patient Symptomatic`) -> COVIDResults
-
-COVIDResults$Test_date <- as.Date(COVIDResults$Test_date, format="%m/%d/%Y")
+#changing dates to formatting where they can be manipulated
 Visit$Visit_date <- as.Date(Visit$Visit_date, format="%m/%d/%Y")
-ChiefComplaint$Vax_date <- as.Date(ChiefComplaint$Vax_date, format="%m/%d/%Y")
-lab_data$collection_date<-as.Date(lab_data$`Collection Date`, format="%Y/%m/%d")
-
-#pulling out eligible IDs for now, will add demographic information after cleaning covid results and lab data
-Visit %>%
-  filter(Facility_State=="NY") %>%
-  filter(Visit_date >= "2020-03-01")%>%
-  select(PatientID)%>%
-  distinct()-> Visit #7555936
-
-#Filtering on Covid test given, test date, and receipt of confirmatory PCR
-COVIDResults %>%
-  filter(Lab.Result.Interpretation=="POSITIVE" | Lab.Result.Interpretation=="NEGATIVE") %>%
-  filter(Test_date >= "2020-03-01") -> COVIDResults     #959750     
-
-COVIDResults %>%
-  filter(Lab.Result.Interpretation=="POSITIVE" | Lab.Result.Interpretation=="NEGATIVE") %>%
-  filter(Test_date >= "2021-11-01")%>%
-  filter(Grouping=="COVID PCR (Active)"|Grouping=="POC Test")-> COVIDResults_PCR
-
-lab_data %>%
-  filter(collection_date >= "2021-11-01")%>%
-  distinct()-> lab_data_PCR
-
-#Marking all entries that got a confirmatory PCR test
-COVIDResults_conf<-COVIDResults%>%
-  filter(Confirmatory.PCR=="1")%>%
-  select(PatientID, Confirmatory.PCR)%>%
-  distinct()
-
-COVIDResults_confPCR<-left_join(COVIDResults_conf, COVIDResults, by="PatientID")
-
-COVIDResults_confPCR <- COVIDResults_confPCR %>%
-  group_by(PatientID) %>%
-  arrange(Test_date, .by_group=TRUE)%>%
-  mutate(Visit = 1:n())%>%
-  select(-Confirmatory.PCR.x)
-#Some pts got PCR + antigen tests on the same day with same VistID so don't pull out distinct Visit IDs 
-
 #Remove duplicates in Visit data
 Visit <- distinct(Visit) #7555922
 
@@ -174,7 +273,6 @@ Visit.w.region <- dcast(Visit, PatientID  ~ Visit, value.var = "Geograpic Region
 Visit.w.region <- Visit.w.region[,1:2]
 Visit.w <- left_join(Visit.w, Visit.w.region, by="PatientID")
 
-names(Visit.w)
 #rename vars
 Visit.w <- setnames(Visit.w, old = c("1.x","1.y","1.x.x","1.y.y","1.x.x.x","1.y.y.y",1), new=c("1","Age","Gender","Race","Ethnicity","UHF","Region"))
 
@@ -530,17 +628,497 @@ Visit.demo$racecat <- if_else(Visit.demo$racecat=="Other/Unknown" & !(is.na(Visi
 #Removing updated race tables
 rm(updated.race, updatedrace_orig_race_Oct)
 
-#Remove duplicates in COVID results
-COVIDResults_confPCR<- distinct(COVIDResults_confPCR) #3006164
+#pulling out eligible IDs for now, will add demographic information after cleaning covid results and lab data
+Visit %>%
+  filter(Facility_State=="NY") %>%
+  filter(Visit_date >= "2020-03-01")%>%
+  select(PatientID)%>%
+  distinct()-> Visit #7555936
 
+###CLEANING COVID RESULTS####
+
+COVIDResults <- as.data.table(COVIDResults)
+
+COVIDResults %>%
+  rename(Test_date = `Adjusted Visit Date`,
+         Lab.Result.Interpretation = `Lab Result Interpretation`,
+         Confirmatory.PCR=`Rapid Order Confirmatory PCR Ordered`,
+         Result.PCR=`Rapid Order Confirmatory PCR Result`,
+         Diff.Results=`Rapid Order Confirmatory PCR Incongruent Results`,
+         Order.Name= `Order Name`,
+         Symptomatic=`Rapid Order Patient Symptomatic`) -> COVIDResults
+
+COVIDResults$Test_date <- as.Date(COVIDResults$Test_date, format="%m/%d/%Y")
+
+#Filtering on Covid test given, test date, and receipt of confirmatory PCR
+#Currently have incomplete data post 11/1, pasting in "symptomatic" for each visit a person reported
+#symptoms
+COVIDResults %>%
+  filter(Lab.Result.Interpretation=="POSITIVE" | Lab.Result.Interpretation=="NEGATIVE") %>%
+  mutate_at(vars(Symptomatic), funs('Symptomatic_old' = na_if(., ''))) %>% 
+  # set grouping for following operations
+  group_by(VisitID) %>% 
+  # for added columns, fill values downwards and upwards within each group
+  fill(Symptomatic) %>% 
+  fill(Symptomatic, .direction = 'up') %>%
+  # reinsert empty strings for NAs
+  mutate_at(vars(Symptomatic), funs(coalesce(., factor(NA))))%>%
+  ungroup()%>%
+  filter(Confirmatory.PCR=="1")%>%
+  filter(Test_date >= "2020-03-01" & Test_date<"2021-11-01")%>%
+  distinct()-> COVIDResults_confPCR     #959750     
+
+COVIDResults_confPCR <- COVIDResults_confPCR %>%
+    group_by(PatientID) %>%
+    arrange(Test_date, .by_group=TRUE)%>%
+    mutate(Visit = 1:n())
+
+#If we restrict to those who only came to cityMD once, can link their vaccine and symptoms data
+
+#Marking all entries that got a confirmatory PCR test
+#COVIDResults_conf<-COVIDResults%>%
+#  filter(Confirmatory.PCR=="1")%>%
+#  select(PatientID, Confirmatory.PCR)%>%
+#  distinct()
+
+#COVIDResults_confPCR<-left_join(COVIDResults_conf, COVIDResults, by="PatientID")
+
+#COVIDResults_confPCR <- COVIDResults_confPCR %>%
+#  group_by(PatientID) %>%
+#  arrange(Test_date, .by_group=TRUE)%>%
+#mutate(Visit = 1:n())%>%
+#  select(-Confirmatory.PCR.x)
+#Some pts got PCR + antigen tests on the same day with same VistID so don't pull out distinct Visit IDs 
+
+#Remove duplicates in Visit data
+Visit <- distinct(Visit) #7555922
+
+#Create separate wide datasets for each variable and combine at the end; unwieldy otherwise
+Visit <- Visit %>%
+  group_by(PatientID) %>%
+  arrange(Visit_date, .by_group=TRUE)%>%
+  mutate(Visit = 1:n())
+
+Visit<- as.data.table(Visit)
+Visit.w <- dcast(Visit, PatientID  ~ Visit, value.var = "Visit_date")
+
+Visit.w.age <- dcast(Visit, PatientID  ~ Visit, value.var = "PatientAge")
+Visit.w.age <- Visit.w.age[,1:2]
+Visit.w <- left_join(Visit.w, Visit.w.age, by="PatientID")
+
+Visit.w.gender <- dcast(Visit, PatientID  ~ Visit, value.var = "PatientGender")
+Visit.w.gender <- Visit.w.gender[,1:2]
+Visit.w <- left_join(Visit.w, Visit.w.gender, by="PatientID")
+
+Visit.w.re <- dcast(Visit, PatientID  ~ Visit, value.var = "Race")
+Visit.w.race <- Visit.w.re[,1:2]
+Visit.w <- left_join(Visit.w, Visit.w.race, by="PatientID")
+
+Visit.w.ethnicity <-  dcast(Visit, PatientID  ~ Visit, value.var = "Ethnicity")
+Visit.w.ethnicity <- Visit.w.ethnicity[,1:2]
+Visit.w <- left_join(Visit.w, Visit.w.ethnicity, by="PatientID")
+
+Visit.w.PIG <-  dcast(Visit, PatientID  ~ Visit, value.var = "PrimaryInsuranceGroup")
+Visit.w.PIG <- Visit.w.PIG[,1:6]
+Visit.w.PIG <- Visit.w.PIG %>%
+  rename(PI1 = 2)
+Visit.w.PIG <- Visit.w.PIG %>%
+  rename(PI2 = 3)
+Visit.w.PIG <- Visit.w.PIG %>%
+  rename(PI3 = 4)
+Visit.w.PIG <- Visit.w.PIG %>%
+  rename(PI4 = 5)
+Visit.w.PIG <- Visit.w.PIG %>%
+  rename(PI5 = 6)
+Visit.w <- left_join(Visit.w, Visit.w.PIG, by="PatientID")
+
+Visit.w.UHF <- dcast(Visit, PatientID  ~ Visit, value.var = "UHF_Neighborhood")
+Visit.w.UHF <- Visit.w.UHF[,1:2]
+
+Visit.w <- left_join(Visit.w, Visit.w.UHF, by="PatientID")
+
+Visit.w.facility <- dcast(Visit, PatientID  ~ Visit, value.var = "Facility_City")
+Visit.w.facility <- Visit.w.facility[,1:6]
+Visit.w.facility <- Visit.w.facility %>%
+  rename(Fac1 = 2)
+Visit.w.facility <- Visit.w.facility %>%
+  rename(Fac2 = 3)
+Visit.w.facility <- Visit.w.facility %>%
+  rename(Fac3 = 4)
+Visit.w.facility <- Visit.w.facility %>%
+  rename(Fac4 = 5)
+Visit.w.facility <- Visit.w.facility %>%
+  rename(Fac5 = 6)
+Visit.w <- left_join(Visit.w, Visit.w.facility, by="PatientID")
+
+Visit.w.region <- dcast(Visit, PatientID  ~ Visit, value.var = "Geograpic Region")
+Visit.w.region <- Visit.w.region[,1:2]
+Visit.w <- left_join(Visit.w, Visit.w.region, by="PatientID")
+
+
+#rename vars
+Visit.w <- setnames(Visit.w, old = c("1.x","1.y","1.x.x","1.y.y","1.x.x.x","1.y.y.y",1), new=c("1","Age","Gender","Race","Ethnicity","UHF","Region"))
+
+#select out demographic vars 
+Visit.demo <- Visit.w[, c(1,106:121)]
+
+#Remove extra datasets
+rm(Visit.w, Visit.w.age, Visit.w.ethnicity, Visit.w.facility, Visit.w.gender, Visit.w.PIG, Visit.w.race, Visit.w.re, Visit.w.region, Visit.w.UHF)
+
+Visit.demo$racecat <- NA
+Visit.demo$racecat[Visit.demo$Race %in% c("Abenaki","Absentee Shawnee", "Apache", "Arapaho", "Caddo","Acoma", 
+                                          "Alamo Navajo", "Canoncito Navajo", "Agdaagux", "Agua Caliente", "Agua Caliente Cahuilla", 
+                                          "Augustine", "Bishop", "Bridgeport", "Cabazon", "Cahto", "Cahuilla", 
+                                          "California Tribes", "Campo", "Capitan Grande", "Ak-Chin", "Arizona Tewa", 
+                                          "Barrio Libre", "Birch Creek", "Brevig Mission", "Ak-Chin", "Arizona Tewa", "Barrio Libre", 
+                                          "Birch Creek", "Brevig Mission", "Alabama Coushatta", "Alabama Creek", "Alabama Quassarte",
+                                          "Allen Canyon", "Alsea", "Arikara", "Aroostook", "Assiniboine", "Assiniboine Sioux", "Atsina", 
+                                          "Blackfoot Sioux", "Attacapa", "Bad River", "Brotherton", "Bannock", "Battle Mountain", 
+                                          "Carson", "Bay Mills Chippewa", "Burt Lake Band", "Burt Lake Chippewa", "Burt Lake Ottawa",
+                                          "Big Cypress", "Brighton", "Biloxi", "Blackfeet", "Bois Forte", "Brule Sioux", "Burns Paiute",
+                                          "Catawba", "Cayuga", "Cayuse", "Cedarville", "Celilo", "Central Pomo", "Chehalis", "Chemakuan",
+                                          "Chemehuevi", "Cherokee", "Cherokee Alabama", "Cherokee Shawnee", "Cherokees of Northeast Alabama",
+                                          "Cherokees of Southeast Alabama", "Cheyenne", "Cheyenne River Sioux", "Cheyenne-Arapaho",
+                                          "Chickahominy", "Chickasaw", "Chimariko", "Chinook", "Chippewa", "Chippewa Cree", 
+                                          "Chiricahua", "Chitimacha", "Choctaw", "Chukchansi", "Chumash", "Citizen Band Potawatomi",
+                                          "Clatsop", "Clear Lake", "Clifton Choctaw", "Coast Miwok", "Coast Yurok", "Cochiti", "Cocopah",
+                                          "Coeur D'Alene", "Coharie", "Colorado River", "Columbia River Chinook", "Colville",
+                                          "Comanche", "Coos", "Coos; Lower Umpqua; Siuslaw", "Coquilles", "Costanoan", "Coushatta",
+                                          "Cow Creek Umpqua", "Cowlitz", "Craig", "Cree", "Creek", "Croatan", "Crow", "Crow Creek Sioux",
+                                          "Cupeno", "Cuyapaipe", "Dakota Sioux", "Delaware", "Diegueno", "Digger", "Dresslerville",
+                                          "Dry Creek", "Duck Valley", "Duckwater", "Duwamish", "Eastern Cherokee", "Eastern Chickahominy",
+                                          "Eastern Creek", "Eastern Delaware", "Eastern Muscogee", "Eastern Pomo", "Eastern Shawnee",
+                                          "Echota Cherokee", "Elko", "Ely", "Esselen", "Etowah Cherokee", "Fallon", "Flandreau Santee",
+                                          "Florida Seminole", "Fond du Lac", "Forest County", "Fort Belknap", "Fort Berthold", "Fort Bidwell",
+                                          "Fort Hall", "Fort Independence", "Fort McDermitt", "Fort Mcdowell", "Fort Peck", 
+                                          "Fort Peck Assiniboine Sioux", "Fort Sill Apache", "French American Indian", "Gabrieleno",
+                                          "Gay Head Wampanoag", "Georgetown (Eastern Tribes)", "Gila Bend", "Gila River Pima-Maricopa",
+                                          "Goshute", "Grand Portage", "Grand Ronde", "Grand Traverse Band of Ottawa/Chippewa",
+                                          "Gros Ventres", "Haliwa", "Hannahville", "Havasupai", "Hidatsa", "Ho-chunk", "Hoh", "Hollywood Seminole",
+                                          "Hoopa", "Hoopa Extension", "Hopi", "Houma", "Hualapai", "Huron Potawatomi", "Illinois Miami",
+                                          "Inaja-Cosmit", "Indian Township", "Indiana Miami", "Iowa", "Iowa of Kansas-Nebraska", 
+                                          "Iowa of Oklahoma", "Iowa Sac and Fox", "Iroquois", "Isleta", "Jamestown", "Jemez",
+                                          "Jena Choctaw", "Jicarilla Apache", "Juaneno", "Kaibab", "Kalapuya", "Kalispel", 
+                                          "Karuk", "Kashia", "Kathlamet", "Kaw", "Kawaiisu", "Keres", "Kern River", "Keweenaw",
+                                          "Kialegee", "Kickapoo", "Kikiallus", "Kiowa", "Klallam", "Klamath", "Konkow", "Kootenai",
+                                          "La Jolla", "La Posta", "Lac Courte Oreilles", "Lac du Flambeau", "Lac Vieux Desert Chippewa",
+                                          "Laguna", "Lake Superior", "Lake Traverse Sioux", "Las Vegas", "Lassik", "Leech Lake", 
+                                          "Lenni-Lenape", "Lipan Apache", "Little Shell Chippewa", "Lone Pine", "Long Island", "Los Coyotes",
+                                          "Lovelock", "Lower Brule Sioux", "Lower Elwha", "Lower Muscogee", "Lower Sioux", "Lower Skagit", 
+                                          "Luiseno", "Lumbee", "Lummi", "Machis Lower Creek Indian", "Maidu", "Makah", "Malheur Paiute",
+                                          "Maliseet", "Mandan", "Manzanita", "Maricopa", "Marshantucket Pequot", "Mashpee Wampanoag",
+                                          "Matinecock", "Mattaponi", "Mattole", "Mdewakanton Sioux", "Menominee", "Mesa Grande", 
+                                          "Mescalero Apache", "Miami", "Miccosukee", "Michigan Ottawa", "Algonquian", "Beaver", 
+                                          "Canadian Indian", "Greenland Eskimo", "Haida", "Micmac", "Mille Lacs", "Miniconjou",
+                                          "Minnesota Chippewa", "Mission Indians", "Mississippi Choctaw", "Missouri Sac and Fox", 
+                                          "Miwok", "Modoc", "Mohave", "Mohawk", "Mohegan", "Molala", "Mono", "Montauk", "Morongo",
+                                          "Mountain Maidu", "Mowa Band of Choctaw", "Muckleshoot", "Munsee", "Nambe", "Narragansett",
+                                          "Natchez", "Nausu Waiwash", "Navajo", "Nebraska Ponca", "Nebraska Winnebago", "Nez Perce", 
+                                          "Nipmuc", "Nishinam", "Nisqually", "Nomalaki", "Nooksack", "Northern Arapaho", "Northern Cherokee",
+                                          "Northern Cheyenne", "Northern Paiute", "Northern Pomo", "Northwest Tribes", "Oglala Sioux",
+                                          "Oklahoma Apache", "Oklahoma Cado", "Oklahoma Choctaw", "Oklahoma Comanche", "Oklahoma Kickapoo",
+                                          "Oklahoma Kiowa", "Oklahoma Miami", "Oklahoma Ottawa", "Oklahoma Pawnee", "Oklahoma Peoria",
+                                          "Oklahoma Ponca", "Oklahoma Sac and Fox", "Oklahoma Seminole", "Omaha", "Oneida", "Onondaga",
+                                          "Ontonagon", "Oregon Athabaskan", "Osage", "Otoe-Missouria", "Ottawa", "Owens Valley", "Paiute", 
+                                          "Pala", "Palauan", "Pamunkey", "Panamint", "Pascua Yaqui", "Passamaquoddy", "Paugussett", "Pauma", 
+                                          "Pawnee", "Payson Apache", "Pawnee", "Payson Apache", "Pechanga", "Pelican", "Penobscot", "Peoria",
+                                          "Pequot", "Perryville", "Picuris", "Pima", "Pine Ridge Sioux", "Pipestone Sioux", "Piro", 
+                                          "Piscataway", "Pit River", "Pleasant Point Passamaquoddy", "Poarch Band", "Pocomoke Acohonock", 
+                                          "Pojoaque", "Pokagon Potawatomi", "Pomo", "Ponca", "Poospatuck", "Port Madison", "Potawatomi", 
+                                          "Powhatan", "Prairie Band", "Prairie Island Sioux", "Principal Creek Indian Nation", "Prior Lake Sioux",
+                                          "Pueblo", "Puget Sound Salish", "Puyallup", "Pyramid Lake", "Quapaw", "Quechan", "Quileute", 
+                                          "Quinault", "Ramah Navajo", "Rampough Mountain", "Red Cliff Chippewa", "Red Lake Chippewa", 
+                                          "Red Wood", "Reno-Sparks", "Rocky Boy's Chippewa Cree", "Rosebud Sioux", "Round Valley",
+                                          "Sac and Fox", "Saginaw Chippewa", "Salinan", "Salish", "Salish and Kootenai", "Salt River Pima-Maricopa",
+                                          "Samish", "San Carlos Apache", "San Felipe", "San Ildefonso", "San Juan Pueblo", "San Juan Southern Paiute",
+                                          "San Manual", "San Pasqual", "Sand Hill", "Sand Point", "Sandia", "Santa Ana", "Santa Clara",
+                                          "Santa Rosa", "Santa Rosa Cahuilla", "Santa Ynez", "Santa Ysabel", "Santee Sioux", "Sauk-Suiattle",
+                                          "Sault Ste. Marie Chippewa", "Schaghticoke", "Scotts Valley", "Seminole", "Seneca", "Seneca Nation",
+                                          "Serrano", "Setauket", "Shasta", "Shawnee", "Shinnecock", "Shoshone", "Shoshone Paiute", "Sioux", 
+                                          "Sisseton-Wahpeton", "Skokomish", "Skull Valley", "Snohomish", "Soboba", "Sokoagon Chippewa",
+                                          "South Fork Shoshone", "Southeastern Indians", "Southern Arapaho", "Southern Cheyenne",
+                                          "Southern Paiute", "Spirit Lake Sioux", "Spokane", "Squaxin Island", "St. Croix Chippewa",
+                                          "Standing Rock Sioux", "Star Clan of Muscogee Creeks", "Steilacoom", "Stillaguamish",
+                                          "Stockbridge", "Sulphur Bank", "Summit Lake", "Suquamish", "Susanville", "Susquehanock",
+                                          "Sycuan", "Table Bluff", "Tachi", "Takelma", "Taos", "Te-Moak Western Shoshone", "Temecula",
+                                          "Tenino", "Tesuque", "Teton Sioux", "Tewa", "Texas Kickapoo", "Thlopthlocco", "Tigua", 
+                                          "Timbi-Sha Shoshone", "Tohono O'Odham", "Tolowa", "Tonawanda Seneca", "Torres-Martinez",
+                                          "Tsimshian", "Tuckabachee", "Tulalip", "Tule River", "Tunica Biloxi", "Turtle Mountain",
+                                          "Tuscarora", "Tuscola", "Twenty-Nine Palms", "Two Kettle Sioux", "Tygh", "Uintah Ute", 
+                                          "Umatilla", "Umpqua", "United Keetowah Band of Cherokee, Upper Chinook", "Upper Sioux",
+                                          "Upper Skagit", "Ute", "Ute Mountain Ute", "Utu Utu Gwaitu Paiute", "Waccamaw-Siousan", 
+                                          "Wahpekute Sioux", "Wahpeton Sioux", "Wailaki", "Wakiakum Chinook", "Walker River", 
+                                          "Walla-Walla", "Wampanoag", "Wappo", "Warm Springs", "Wascopum", "Washakie", "Washoe",
+                                          "Wazhaza Sioux", "Wenatchee", "Western Cherokee", "Western Chickahominy", "Whilkut", "White Earth",
+                                          "White Mountain", "White Mountain Apache", "White Mountain Inupiat", "Wichita", "Wicomico",
+                                          "Willapa Chinook", "Wind River", "Wind River Arapaho", "Wind River Shoshone", "Winnebago",
+                                          "Winnemucca", "Wintun", "Wisconsin Potawatomi", "Wishram", "Wiyot", "Wyandotte", "Yahooskin",
+                                          "Yakama", "Yakama Cowlitz", "Yana", "Yankton Sioux", "Yanktonai Sioux", "Yaqui", "Yavapai",
+                                          "Yavapai Apache", "Yerington Paiute", "Yokuts", "Yomba", "Yuchi", "Yuki", "Yuman", "Yurok",
+                                          "Zia", "Zuni", "Eastern Tribes","Ahtna", "Akhiok", "Akiachak", "Akiak", "Akutan", "Alakanuk", "Alanvik", "Alaska Indian", 
+                                          "Alaska Native", "Alaskan Athabascan", "Alatna", "Aleknagik", "Aleut", "Aleut Corporation",
+                                          "Aleutian", "Aleutian Islander", "Alexander", "Allakaket", "Alutiiq Aleut", "Ambler", 
+                                          "Anaktuvuk", "Anaktuvuk Pass", "Andreafsky", "Angoon", "Aniak", "Anvik", "Arctic", 
+                                          "Arctic Slope Corporation", "Arctic Slope Inupiat", "Atka", "Atmautluak", "Atqasuk",
+                                          "Barrow", "Belkofski", "Bering Straits Inupiat", "Bethel", "Bill Moore's Slough", "Bristol Bay Aleut", 
+                                          "Bristol Bay Yupik", "Buckland", "Calista Yupik", "Cantwell", "Central Council of Tlingit and Haida Tribes",
+                                          "Chefornak", "Chalkyitsik","Chenega", "Chevak", "Chickaloon", "Chignik", "Chignik Lagoon",
+                                          "Chignik Lagoon", "Chignik Lake", "Chilkat", "Chilkoot", "Chinik", "Chistochina", "Chitina",
+                                          "Chuathbaluk", "Chugach Aleut", "Chugach Corporation", "Clark's Point", "Cook Inlet", 
+                                          "Copper Center", "Copper River", "Crooked Creek", "Deering", "Dillingham", "Dot Lake",
+                                          "Doyon", "Eek", "Egegik", "Eklutna", "Ekuk", "Ekwok", "Elim", "Emmonak", "English Bay",
+                                          "Eskimo", "Evansville", "Eyak", "False Pass", "Fort Yukon", "Gakona", "Galena", "Gambell", 
+                                          "Georgetown (Yupik-Eskimo)", "Golovin", "Goodnews Bay", "Grayling", "Gulkana", "Healy Lake",
+                                          "Holy Cross", "Hoonah", "Hooper Bay", "Hughes", "Huslia", "Hydaburg", "Igiugig", "Iliamna",
+                                          "Inalik Diomede", "Inupiaq", "Inupiat Eskimo", "Iqurmuit (Russian Mission)", "Ivanof Bay",
+                                          "Kake", "Kalskag", "Kaltag", "Kasaan", "Kasigluk", "Kawerak", "Kenaitze", "Ketchikan", "Kiana",
+                                          "King Cove", "King Salmon", "Kipnuk", "Kivalina", "Klawock", "Knik", "Kobuk", 
+                                          "Kodiak", "Kokhanok", "Koliganek", "Kongiganak", "Koniag Aleut", "Kotlik", "Kotzebue",
+                                          "Koyuk", "Koyukuk", "Kwethluk", "Kwigillingok", "Kwiguk", "Lake Minchumina", "Larsen Bay",
+                                          "Levelock", "Manley Hot Springs", "Manokotak", "Mary's Igloo", "Mauneluk Inupiat", "Mekoryuk", 
+                                          "Mentasta Lake", "Metlakatla", "Minto", "Mountain Village", "Nana Inupiat", "Napakiak", 
+                                          "Napaskiak", "Napaumute", "Nelson Lagoon", "Nenana", "New Stuyahok", "Newhalen", "Newtok", "Nikolai",
+                                          "Ninilchik", "Noatak", "Nome", "Nondalton", "Noorvik", "Northway", "Nulato", "Nunapitchukv", 
+                                          "Old Harbor", "Oscarville", "Ouzinkie", "Pauloff Harbor", "Pedro Bay", "Petersburg", "Pilot Point",
+                                          "Pitkas Point", "Point Hope", "Point Lay", "Port Graham", "Port Heiden", "Port Lions", "Portage Creek",
+                                          "Qagan Toyagungin", "Qawalangin", "Quinhagak", "Rampart", "Ruby", "Ruby Valley", "Salamatof", "Savoonga",
+                                          "Saxman", "Scammon Bay", "Selawik", "Seldovia", "Shageluk", "Shaktoolik", "Sheldon's Point", "Shishmaref",
+                                          "Shungnak", "Siberian Eskimo", "Siberian Yupik", "Sitka", "Slana", "Sleetmute", "South Naknek", 
+                                          "Southeast Alaska", "St. George", "St. Mary's", "St. Michael", "St. Paul", "Stebbins", "Stevens",
+                                          "Stony River", "Sugpiaq", "Tanaina", "Tanana", "Tanana Chiefs", "Tazlina", "Telida", "Teller",
+                                          "Tenakee Springs", "Tlingit", "Tlingit-Haida", "Tok", "Toksook", "Tulukskak", "Tuntutuliak", "Tununak",
+                                          "Twin Hills", "Tyonek", "Ugashik", "Umkumiate", "Unalakleet", "Unalaska", "Unangan Aleut", "Unga",
+                                          "Venetie", "Wainwright", "Wrangell", "Yakutat", "Yupik Eskimo","Central American Indian", "Mexican American Indian",
+                                          "South American Indian","American Indian", "American Indian or Alaska Native", "Canadian and Latin American Indian", 
+                                          "Chamorro", "Chuukese", "Fijian", "Guamanian", "Kiribati", "Kosraean", "Mariana Islander",
+                                          "Marshall", "Marshallese", "Melanesian", "Micronesian", "Native Hawaiian", 
+                                          "Native Hawaiian or Other Pacific Islander", "New Hebrides", "Other Pacific Islander",
+                                          "Papua New Guinean", "Pohnpeian", "Polynesian", "Saipanese", "Samoan", "Solomon", "Solomon Islander",
+                                          "Tahitian", "Tokelauan", "Tongan", "Yapese", "Guamanian or Chamorro", "Spanish American Indian",
+                                          "United Keetowah Band of Cherokee","Red Devil","Upper Chinook", "Kluti Kaah"," Lower Kalskag", "Nanticoke",
+                                          "Nightmute","Nuiqsut"," Port Gamble Klallam","San Xavier","Scott Valley","Seneca-Cayuga","Siuslaw","Talakamish",
+                                          "Tanacross","Togiak", "Lower Kalskag", "Port Gamble Klallam", "Tetlin")] <- "Native American/Alaskan Native/Pacific Islander"
+
+Visit.demo$racecat[Visit.demo$Race %in% c("Asian","Bangladeshi", "Bhutanese", "Asian Indian", "Maldivian", "Nepalese", "Pakistani",
+                                          "Sri Lankan","Burmese", "Cambodian", "Indonesian", "Hmong", "Laotian", "Malaysian", "Singaporean",
+                                          "Thailand", "Vietnamese","Chinese", "Iwo Jiman", "Japanese", "Korean", "Okinawan", "Taiwanese","Thai")] <- "Asian"                     
+
+Visit.demo$racecat[Visit.demo$Race %in% c("African", "Botswanan", "Ethiopian", "Liberian", "Madagascar", "Namibian", "Nigerian",
+                                          "Zairean","African American","Bahamian", "Barbadian", "Douglas", "Haitian", "Jamaican", "Tobagoan", "Trinidadian",
+                                          "West Indian","Black", "Black or African American")] <- "Black/AfrAm"
+
+Visit.demo$racecat[Visit.demo$Race %in% c("Alpine", "English", "European", "French", "German", "Irish", "Italian", "Moor",
+                                          "Polish", "Scottish", "Wales","Iranian", "Iraqi", "Armenian", "Arab", "Assyrian", "Afghanistani", 
+                                          "Israeili", "Karluk", "Lebanese", "Egyptian", "Middle Eastern or North African", 
+                                          "Palestinian", "Syrian","White")] <-"White"
+
+
+Visit.demo$racecat[Visit.demo$Race %in% c("Columbia","Dominica Islander", "Dominican", "Santo Domingo","Filipino","San Juan","Hispanic", "San Juan De")] <-"Hispanic"
+
+Visit.demo$racecat[Visit.demo$Race %in% c("Declined to Report", "Declined to Specify", "Unreported/Refuse to Report", "Unreported/Refused to Report",
+                                          "Unreported/Refused To Report","Other Race","Carolinian", "Circle", "Council", "Eagle", "Lime", "Mcgrath", "Platinum", "Stewart",
+                                          "Trinity", "Wiseman","Oklahoma Delaware","Siletz","Stonyford","", "Suqpigaq", "Unreported/Refuse To Report")] <- "Other/Unknown"
+# If ethnicity is Hispanic, change race to Hispanic
+Visit.demo$Ethnicity[Visit.demo$Ethnicity == "Unreported/Refused to Report"] <- NA 
+Visit.demo$Ethnicity[Visit.demo$Ethnicity == ""] <- NA 
+
+Visit.demo$racecat[!is.na(Visit.demo$Ethnicity) & Visit.demo$Ethnicity != "Not Hispanic or Latino"] <- "Hispanic"
+summary(as.factor(Visit.demo$racecat))
+Visit.demo$racecat[is.na(Visit.demo$racecat)] <- "Other/Unknown"
+summary(as.factor(Visit.demo$racecat))
+
+####### Updating race variable for citymd data based on Saba's code####
+updatedrace_orig_race_Oct<-Visit.demo%>%
+  select(PatientID, racecat, Race)
+updatedrace_orig_race_Oct$racecat <- NA
+updatedrace_orig_race_Oct$racecat[updatedrace_orig_race_Oct$Race %in% c("Abenaki","Absentee Shawnee", "Apache", "Arapaho", "Caddo","Acoma", 
+                                                                        "Alamo Navajo", "Canoncito Navajo", "Agdaagux", "Agua Caliente", "Agua Caliente Cahuilla", 
+                                                                        "Augustine", "Bishop", "Bridgeport", "Cabazon", "Cahto", "Cahuilla", 
+                                                                        "California Tribes", "Campo", "Capitan Grande", "Ak-Chin", "Arizona Tewa", 
+                                                                        "Barrio Libre", "Birch Creek", "Brevig Mission", "Ak-Chin", "Arizona Tewa", "Barrio Libre", 
+                                                                        "Birch Creek", "Brevig Mission", "Alabama Coushatta", "Alabama Creek", "Alabama Quassarte",
+                                                                        "Allen Canyon", "Alsea", "Arikara", "Aroostook", "Assiniboine", "Assiniboine Sioux", "Atsina", 
+                                                                        "Blackfoot Sioux", "Attacapa", "Bad River", "Brotherton", "Bannock", "Battle Mountain", 
+                                                                        "Carson", "Bay Mills Chippewa", "Burt Lake Band", "Burt Lake Chippewa", "Burt Lake Ottawa",
+                                                                        "Big Cypress", "Brighton", "Biloxi", "Blackfeet", "Bois Forte", "Brule Sioux", "Burns Paiute",
+                                                                        "Catawba", "Cayuga", "Cayuse", "Cedarville", "Celilo", "Central Pomo", "Chehalis", "Chemakuan",
+                                                                        "Chemehuevi", "Cherokee", "Cherokee Alabama", "Cherokee Shawnee", "Cherokees of Northeast Alabama",
+                                                                        "Cherokees of Southeast Alabama", "Cheyenne", "Cheyenne River Sioux", "Cheyenne-Arapaho",
+                                                                        "Chickahominy", "Chickasaw", "Chimariko", "Chinook", "Chippewa", "Chippewa Cree", 
+                                                                        "Chiricahua", "Chitimacha", "Choctaw", "Chukchansi", "Chumash", "Citizen Band Potawatomi",
+                                                                        "Clatsop", "Clear Lake", "Clifton Choctaw", "Coast Miwok", "Coast Yurok", "Cochiti", "Cocopah",
+                                                                        "Coeur D'Alene", "Coharie", "Colorado River", "Columbia River Chinook", "Colville",
+                                                                        "Comanche", "Coos", "Coos; Lower Umpqua; Siuslaw", "Coquilles", "Costanoan", "Coushatta",
+                                                                        "Cow Creek Umpqua", "Cowlitz", "Craig", "Cree", "Creek", "Croatan", "Crow", "Crow Creek Sioux",
+                                                                        "Cupeno", "Cuyapaipe", "Dakota Sioux", "Delaware", "Diegueno", "Digger", "Dresslerville",
+                                                                        "Dry Creek", "Duck Valley", "Duckwater", "Duwamish", "Eastern Cherokee", "Eastern Chickahominy",
+                                                                        "Eastern Creek", "Eastern Delaware", "Eastern Muscogee", "Eastern Pomo", "Eastern Shawnee",
+                                                                        "Echota Cherokee", "Elko", "Ely", "Esselen", "Etowah Cherokee", "Fallon", "Flandreau Santee",
+                                                                        "Florida Seminole", "Fond du Lac", "Forest County", "Fort Belknap", "Fort Berthold", "Fort Bidwell",
+                                                                        "Fort Hall", "Fort Independence", "Fort McDermitt", "Fort Mcdowell", "Fort Peck", 
+                                                                        "Fort Peck Assiniboine Sioux", "Fort Sill Apache", "French American Indian", "Gabrieleno",
+                                                                        "Gay Head Wampanoag", "Georgetown (Eastern Tribes)", "Gila Bend", "Gila River Pima-Maricopa",
+                                                                        "Goshute", "Grand Portage", "Grand Ronde", "Grand Traverse Band of Ottawa/Chippewa",
+                                                                        "Gros Ventres", "Haliwa", "Hannahville", "Havasupai", "Hidatsa", "Ho-chunk", "Hoh", "Hollywood Seminole",
+                                                                        "Hoopa", "Hoopa Extension", "Hopi", "Houma", "Hualapai", "Huron Potawatomi", "Illinois Miami",
+                                                                        "Inaja-Cosmit", "Indian Township", "Indiana Miami", "Iowa", "Iowa of Kansas-Nebraska", 
+                                                                        "Iowa of Oklahoma", "Iowa Sac and Fox", "Iroquois", "Isleta", "Jamestown", "Jemez",
+                                                                        "Jena Choctaw", "Jicarilla Apache", "Juaneno", "Kaibab", "Kalapuya", "Kalispel", 
+                                                                        "Karuk", "Kashia", "Kathlamet", "Kaw", "Kawaiisu", "Keres", "Kern River", "Keweenaw",
+                                                                        "Kialegee", "Kickapoo", "Kikiallus", "Kiowa", "Klallam", "Klamath", "Konkow", "Kootenai",
+                                                                        "La Jolla", "La Posta", "Lac Courte Oreilles", "Lac du Flambeau", "Lac Vieux Desert Chippewa",
+                                                                        "Laguna", "Lake Superior", "Lake Traverse Sioux", "Las Vegas", "Lassik", "Leech Lake", 
+                                                                        "Lenni-Lenape", "Lipan Apache", "Little Shell Chippewa", "Lone Pine", "Long Island", "Los Coyotes",
+                                                                        "Lovelock", "Lower Brule Sioux", "Lower Elwha", "Lower Muscogee", "Lower Sioux", "Lower Skagit", 
+                                                                        "Luiseno", "Lumbee", "Lummi", "Machis Lower Creek Indian", "Maidu", "Makah", "Malheur Paiute",
+                                                                        "Maliseet", "Mandan", "Manzanita", "Maricopa", "Marshantucket Pequot", "Mashpee Wampanoag",
+                                                                        "Matinecock", "Mattaponi", "Mattole", "Mdewakanton Sioux", "Menominee", "Mesa Grande", 
+                                                                        "Mescalero Apache", "Miami", "Miccosukee", "Michigan Ottawa", "Algonquian", "Beaver", 
+                                                                        "Canadian Indian", "Greenland Eskimo", "Haida", "Micmac", "Mille Lacs", "Miniconjou",
+                                                                        "Minnesota Chippewa", "Mission Indians", "Mississippi Choctaw", "Missouri Sac and Fox", 
+                                                                        "Miwok", "Modoc", "Mohave", "Mohawk", "Mohegan", "Molala", "Mono", "Montauk", "Morongo",
+                                                                        "Mountain Maidu", "Mowa Band of Choctaw", "Muckleshoot", "Munsee", "Nambe", "Narragansett",
+                                                                        "Natchez", "Nausu Waiwash", "Navajo", "Nebraska Ponca", "Nebraska Winnebago", "Nez Perce", 
+                                                                        "Nipmuc", "Nishinam", "Nisqually", "Nomalaki", "Nooksack", "Northern Arapaho", "Northern Cherokee",
+                                                                        "Northern Cheyenne", "Northern Paiute", "Northern Pomo", "Northwest Tribes", "Oglala Sioux",
+                                                                        "Oklahoma Apache", "Oklahoma Cado", "Oklahoma Choctaw", "Oklahoma Comanche", "Oklahoma Kickapoo",
+                                                                        "Oklahoma Kiowa", "Oklahoma Miami", "Oklahoma Ottawa", "Oklahoma Pawnee", "Oklahoma Peoria",
+                                                                        "Oklahoma Ponca", "Oklahoma Sac and Fox", "Oklahoma Seminole", "Omaha", "Oneida", "Onondaga",
+                                                                        "Ontonagon", "Oregon Athabaskan", "Osage", "Otoe-Missouria", "Ottawa", "Owens Valley", "Paiute", 
+                                                                        "Pala", "Palauan", "Pamunkey", "Panamint", "Pascua Yaqui", "Passamaquoddy", "Paugussett", "Pauma", 
+                                                                        "Pawnee", "Payson Apache", "Pawnee", "Payson Apache", "Pechanga", "Pelican", "Penobscot", "Peoria",
+                                                                        "Pequot", "Perryville", "Picuris", "Pima", "Pine Ridge Sioux", "Pipestone Sioux", "Piro", 
+                                                                        "Piscataway", "Pit River", "Pleasant Point Passamaquoddy", "Poarch Band", "Pocomoke Acohonock", 
+                                                                        "Pojoaque", "Pokagon Potawatomi", "Pomo", "Ponca", "Poospatuck", "Port Madison", "Potawatomi", 
+                                                                        "Powhatan", "Prairie Band", "Prairie Island Sioux", "Principal Creek Indian Nation", "Prior Lake Sioux",
+                                                                        "Pueblo", "Puget Sound Salish", "Puyallup", "Pyramid Lake", "Quapaw", "Quechan", "Quileute", 
+                                                                        "Quinault", "Ramah Navajo", "Rampough Mountain", "Red Cliff Chippewa", "Red Lake Chippewa", 
+                                                                        "Red Wood", "Reno-Sparks", "Rocky Boy's Chippewa Cree", "Rosebud Sioux", "Round Valley",
+                                                                        "Sac and Fox", "Saginaw Chippewa", "Salinan", "Salish", "Salish and Kootenai", "Salt River Pima-Maricopa",
+                                                                        "Samish", "San Carlos Apache", "San Felipe", "San Ildefonso", "San Juan Pueblo", "San Juan Southern Paiute",
+                                                                        "San Manual", "San Pasqual", "Sand Hill", "Sand Point", "Sandia", "Santa Ana", "Santa Clara",
+                                                                        "Santa Rosa", "Santa Rosa Cahuilla", "Santa Ynez", "Santa Ysabel", "Santee Sioux", "Sauk-Suiattle",
+                                                                        "Sault Ste. Marie Chippewa", "Schaghticoke", "Scotts Valley", "Seminole", "Seneca", "Seneca Nation",
+                                                                        "Serrano", "Setauket", "Shasta", "Shawnee", "Shinnecock", "Shoshone", "Shoshone Paiute", "Sioux", 
+                                                                        "Sisseton-Wahpeton", "Skokomish", "Skull Valley", "Snohomish", "Soboba", "Sokoagon Chippewa",
+                                                                        "South Fork Shoshone", "Southeastern Indians", "Southern Arapaho", "Southern Cheyenne",
+                                                                        "Southern Paiute", "Spirit Lake Sioux", "Spokane", "Squaxin Island", "St. Croix Chippewa",
+                                                                        "Standing Rock Sioux", "Star Clan of Muscogee Creeks", "Steilacoom", "Stillaguamish",
+                                                                        "Stockbridge", "Sulphur Bank", "Summit Lake", "Suquamish", "Susanville", "Susquehanock",
+                                                                        "Sycuan", "Table Bluff", "Tachi", "Takelma", "Taos", "Te-Moak Western Shoshone", "Temecula",
+                                                                        "Tenino", "Tesuque", "Teton Sioux", "Tewa", "Texas Kickapoo", "Thlopthlocco", "Tigua", 
+                                                                        "Timbi-Sha Shoshone", "Tohono O'Odham", "Tolowa", "Tonawanda Seneca", "Torres-Martinez",
+                                                                        "Tsimshian", "Tuckabachee", "Tulalip", "Tule River", "Tunica Biloxi", "Turtle Mountain",
+                                                                        "Tuscarora", "Tuscola", "Twenty-Nine Palms", "Two Kettle Sioux", "Tygh", "Uintah Ute", 
+                                                                        "Umatilla", "Umpqua", "United Keetowah Band of Cherokee, Upper Chinook", "Upper Sioux",
+                                                                        "Upper Skagit", "Ute", "Ute Mountain Ute", "Utu Utu Gwaitu Paiute", "Waccamaw-Siousan", 
+                                                                        "Wahpekute Sioux", "Wahpeton Sioux", "Wailaki", "Wakiakum Chinook", "Walker River", 
+                                                                        "Walla-Walla", "Wampanoag", "Wappo", "Warm Springs", "Wascopum", "Washakie", "Washoe",
+                                                                        "Wazhaza Sioux", "Wenatchee", "Western Cherokee", "Western Chickahominy", "Whilkut", "White Earth",
+                                                                        "White Mountain", "White Mountain Apache", "White Mountain Inupiat", "Wichita", "Wicomico",
+                                                                        "Willapa Chinook", "Wind River", "Wind River Arapaho", "Wind River Shoshone", "Winnebago",
+                                                                        "Winnemucca", "Wintun", "Wisconsin Potawatomi", "Wishram", "Wiyot", "Wyandotte", "Yahooskin",
+                                                                        "Yakama", "Yakama Cowlitz", "Yana", "Yankton Sioux", "Yanktonai Sioux", "Yaqui", "Yavapai",
+                                                                        "Yavapai Apache", "Yerington Paiute", "Yokuts", "Yomba", "Yuchi", "Yuki", "Yuman", "Yurok",
+                                                                        "Zia", "Zuni", "Eastern Tribes","Ahtna", "Akhiok", "Akiachak", "Akiak", "Akutan", "Alakanuk", "Alanvik", "Alaska Indian", 
+                                                                        "Alaska Native", "Alaskan Athabascan", "Alatna", "Aleknagik", "Aleut", "Aleut Corporation",
+                                                                        "Aleutian", "Aleutian Islander", "Alexander", "Allakaket", "Alutiiq Aleut", "Ambler", 
+                                                                        "Anaktuvuk", "Anaktuvuk Pass", "Andreafsky", "Angoon", "Aniak", "Anvik", "Arctic", 
+                                                                        "Arctic Slope Corporation", "Arctic Slope Inupiat", "Atka", "Atmautluak", "Atqasuk",
+                                                                        "Barrow", "Belkofski", "Bering Straits Inupiat", "Bethel", "Bill Moore's Slough", "Bristol Bay Aleut", 
+                                                                        "Bristol Bay Yupik", "Buckland", "Calista Yupik", "Cantwell", "Central Council of Tlingit and Haida Tribes",
+                                                                        "Chefornak", "Chalkyitsik","Chenega", "Chevak", "Chickaloon", "Chignik", "Chignik Lagoon",
+                                                                        "Chignik Lagoon", "Chignik Lake", "Chilkat", "Chilkoot", "Chinik", "Chistochina", "Chitina",
+                                                                        "Chuathbaluk", "Chugach Aleut", "Chugach Corporation", "Clark's Point", "Cook Inlet", 
+                                                                        "Copper Center", "Copper River", "Crooked Creek", "Deering", "Dillingham", "Dot Lake",
+                                                                        "Doyon", "Eek", "Egegik", "Eklutna", "Ekuk", "Ekwok", "Elim", "Emmonak", "English Bay",
+                                                                        "Eskimo", "Evansville", "Eyak", "False Pass", "Fort Yukon", "Gakona", "Galena", "Gambell", 
+                                                                        "Georgetown (Yupik-Eskimo)", "Golovin", "Goodnews Bay", "Grayling", "Gulkana", "Healy Lake",
+                                                                        "Holy Cross", "Hoonah", "Hooper Bay", "Hughes", "Huslia", "Hydaburg", "Igiugig", "Iliamna",
+                                                                        "Inalik Diomede", "Inupiaq", "Inupiat Eskimo", "Iqurmuit (Russian Mission)", "Ivanof Bay",
+                                                                        "Kake", "Kalskag", "Kaltag", "Kasaan", "Kasigluk", "Kawerak", "Kenaitze", "Ketchikan", "Kiana",
+                                                                        "King Cove", "King Salmon", "Kipnuk", "Kivalina", "Klawock", "Knik", "Kobuk", 
+                                                                        "Kodiak", "Kokhanok", "Koliganek", "Kongiganak", "Koniag Aleut", "Kotlik", "Kotzebue",
+                                                                        "Koyuk", "Koyukuk", "Kwethluk", "Kwigillingok", "Kwiguk", "Lake Minchumina", "Larsen Bay",
+                                                                        "Levelock", "Manley Hot Springs", "Manokotak", "Mary's Igloo", "Mauneluk Inupiat", "Mekoryuk", 
+                                                                        "Mentasta Lake", "Metlakatla", "Minto", "Mountain Village", "Nana Inupiat", "Napakiak", 
+                                                                        "Napaskiak", "Napaumute", "Nelson Lagoon", "Nenana", "New Stuyahok", "Newhalen", "Newtok", "Nikolai",
+                                                                        "Ninilchik", "Noatak", "Nome", "Nondalton", "Noorvik", "Northway", "Nulato", "Nunapitchukv", 
+                                                                        "Old Harbor", "Oscarville", "Ouzinkie", "Pauloff Harbor", "Pedro Bay", "Petersburg", "Pilot Point",
+                                                                        "Pitkas Point", "Point Hope", "Point Lay", "Port Graham", "Port Heiden", "Port Lions", "Portage Creek",
+                                                                        "Qagan Toyagungin", "Qawalangin", "Quinhagak", "Rampart", "Ruby", "Ruby Valley", "Salamatof", "Savoonga",
+                                                                        "Saxman", "Scammon Bay", "Selawik", "Seldovia", "Shageluk", "Shaktoolik", "Sheldon's Point", "Shishmaref",
+                                                                        "Shungnak", "Siberian Eskimo", "Siberian Yupik", "Sitka", "Slana", "Sleetmute", "South Naknek", 
+                                                                        "Southeast Alaska", "St. George", "St. Mary's", "St. Michael", "St. Paul", "Stebbins", "Stevens",
+                                                                        "Stony River", "Sugpiaq", "Tanaina", "Tanana", "Tanana Chiefs", "Tazlina", "Telida", "Teller",
+                                                                        "Tenakee Springs", "Tlingit", "Tlingit-Haida", "Tok", "Toksook", "Tulukskak", "Tuntutuliak", "Tununak",
+                                                                        "Twin Hills", "Tyonek", "Ugashik", "Umkumiate", "Unalakleet", "Unalaska", "Unangan Aleut", "Unga",
+                                                                        "Venetie", "Wainwright", "Wrangell", "Yakutat", "Yupik Eskimo","Central American Indian", "Mexican American Indian",
+                                                                        "South American Indian","American Indian", "American Indian or Alaska Native", "Canadian and Latin American Indian", 
+                                                                        "Chamorro", "Chuukese", "Fijian", "Guamanian", "Kiribati", "Kosraean", "Mariana Islander",
+                                                                        "Marshall", "Marshallese", "Melanesian", "Micronesian", "Native Hawaiian", 
+                                                                        "Native Hawaiian or Other Pacific Islander", "New Hebrides", "Other Pacific Islander",
+                                                                        "Papua New Guinean", "Pohnpeian", "Polynesian", "Saipanese", "Samoan", "Solomon", "Solomon Islander",
+                                                                        "Tahitian", "Tokelauan", "Tongan", "Yapese", "Guamanian or Chamorro", "Spanish American Indian",
+                                                                        "United Keetowah Band of Cherokee","Red Devil","Upper Chinook", "Kluti Kaah"," Lower Kalskag", "Nanticoke",
+                                                                        "Nightmute","Nuiqsut"," Port Gamble Klallam","San Xavier","Scott Valley","Seneca-Cayuga","Siuslaw","Talakamish",
+                                                                        "Tanacross","Togiak", "Lower Kalskag", "Port Gamble Klallam", "Tetlin")] <- "Native American/Alaskan Native/Pacific Islander"
+
+updatedrace_orig_race_Oct$racecat[updatedrace_orig_race_Oct$Race %in% c("Asian","Bangladeshi", "Bhutanese", "Asian Indian", "Maldivian", "Nepalese", "Pakistani",
+                                                                        "Sri Lankan","Burmese", "Cambodian", "Indonesian", "Hmong", "Laotian", "Malaysian", "Singaporean",
+                                                                        "Thailand", "Vietnamese","Chinese", "Iwo Jiman", "Japanese", "Korean", "Okinawan", "Taiwanese","Thai")] <- "Asian"                     
+
+updatedrace_orig_race_Oct$racecat[updatedrace_orig_race_Oct$Race %in% c("African", "Botswanan", "Ethiopian", "Liberian", "Madagascar", "Namibian", "Nigerian",
+                                                                        "Zairean","African American","Bahamian", "Barbadian", "Douglas", "Haitian", "Jamaican", "Tobagoan", "Trinidadian",
+                                                                        "West Indian","Black", "Black or African American")] <- "Black/AfrAm"
+
+updatedrace_orig_race_Oct$racecat[updatedrace_orig_race_Oct$Race %in% c("Alpine", "English", "European", "French", "German", "Irish", "Italian", "Moor",
+                                                                        "Polish", "Scottish", "Wales","Iranian", "Iraqi", "Armenian", "Arab", "Assyrian", "Afghanistani", 
+                                                                        "Israeili", "Karluk", "Lebanese", "Egyptian", "Middle Eastern or North African", 
+                                                                        "Palestinian", "Syrian","White")] <-"White"
+
+
+updatedrace_orig_race_Oct$racecat[updatedrace_orig_race_Oct$Race %in% c("Columbia","Dominica Islander", "Dominican", "Santo Domingo","Filipino","San Juan","Hispanic", "San Juan De")] <-"Hispanic"
+
+updatedrace_orig_race_Oct$racecat[updatedrace_orig_race_Oct$Race %in% c("Declined to Report", "Declined to Specify", "Unreported/Refuse to Report", "Unreported/Refused to Report",
+                                                                        "Unreported/Refused To Report","Other Race","Carolinian", "Circle", "Council", "Eagle", "Lime", "Mcgrath", "Platinum", "Stewart",
+                                                                        "Trinity", "Wiseman","Oklahoma Delaware","Siletz","Stonyford","", "Suqpigaq", "Unreported/Refuse To Report")] <- "Other/Unknown"
+# If ethnicity is Hispanic, change race to Hispanic
+updatedrace_orig_race_Oct$Ethnicity[updatedrace_orig_race_Oct$Ethnicity == "Unreported/Refused to Report"] <- NA 
+updatedrace_orig_race_Oct$Ethnicity[updatedrace_orig_race_Oct$Ethnicity == ""] <- NA 
+
+updatedrace_orig_race_Oct$racecat[!is.na(updatedrace_orig_race_Oct$Ethnicity) & updatedrace_orig_race_Oct$Ethnicity != "Not Hispanic or Latino"] <- "Hispanic"
+summary(as.factor(updatedrace_orig_race_Oct$racecat))
+updatedrace_orig_race_Oct$racecat[is.na(updatedrace_orig_race_Oct$racecat)] <- "Other/Unknown"
+summary(as.factor(updatedrace_orig_race_Oct$racecat))
+
+#Remove rows that are Other/Unknown
+updatedrace_orig_race_Oct %>%
+  filter(racecat!="Other/Unknown") -> updated.race
+
+#merged updated races with original data
+updated.race %>%
+  select(PatientID, racecat) -> updated.race
+
+updated.race %>%
+  rename(new_racecat = racecat) -> updated.race
+
+Visit.demo <- left_join(Visit.demo, updated.race, by = "PatientID")
+
+#update racecat var
+Visit.demo$racecat <- if_else(Visit.demo$racecat=="Other/Unknown" & !(is.na(Visit.demo$new_racecat)), Visit.demo$new_racecat, Visit.demo$racecat)
+
+#Removing updated race tables
+rm(updated.race, updatedrace_orig_race_Oct)
+
+###MERGING DATA####
 #Merge Visit data with covid results to get patient IDs for all results 
 merged.data1 <- inner_join(COVIDResults_confPCR, Visit.demo, by="PatientID") #innerjoin because out of state covid results need to be filtered out (6994684)
 
-#Remove duplicates from Chief Complaints
-ChiefComplaint<-distinct(ChiefComplaint)
+
 
 #merge vaccine and visit data
-merged.data2 <- left_join(merged.data1, ChiefComplaint, by="VisitID") #9226028
+#merged.data2 <- left_join(merged.data1, ChiefComplaint, by="VisitID") #9226028
 
 #####Lab data####
 lab_data<-lab_data%>%
