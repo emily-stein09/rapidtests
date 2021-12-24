@@ -24,6 +24,8 @@ map_df_read_csv <- function(path, pattern = "*.csv") {
 
 lab_data<-map_df_read_csv("D:/12-15-2021/Lab Data", pattern=".CSV")
 
+range
+
 #pull in data
 Visit <- read_delim("D:/12-15-2021/CUNY_Visit.csv","|", escape_double = FALSE, trim_ws = TRUE) #10273173 
 COVIDResults <- read_delim("D:/12-15-2021/CUNY_COVIDResults.csv", "|",escape_double = FALSE, 
@@ -69,15 +71,28 @@ COVIDResults %>%
 COVIDResults$Test_date <- as.Date(COVIDResults$Test_date, format="%m/%d/%Y")
 Visit$Visit_date <- as.Date(Visit$Visit_date, format="%m/%d/%Y")
 ChiefComplaint$Vax_date <- as.Date(ChiefComplaint$Vax_date, format="%m/%d/%Y")
+lab_data$collection_date<-as.Date(lab_data$`Collection Date`, format="%Y/%m/%d")
 
+#pulling out eligible IDs for now, will add demographic information after cleaning covid results and lab data
 Visit %>%
   filter(Facility_State=="NY") %>%
-  filter(Visit_date >= "2020-03-01") -> Visit #7555936
+  filter(Visit_date >= "2020-03-01")%>%
+  select(PatientID)%>%
+  distinct()-> Visit #7555936
 
 #Filtering on Covid test given, test date, and receipt of confirmatory PCR
 COVIDResults %>%
   filter(Lab.Result.Interpretation=="POSITIVE" | Lab.Result.Interpretation=="NEGATIVE") %>%
-  filter(Test_date >= "2020-03-01") -> COVIDResults     #959750                        
+  filter(Test_date >= "2020-03-01") -> COVIDResults     #959750     
+
+COVIDResults %>%
+  filter(Lab.Result.Interpretation=="POSITIVE" | Lab.Result.Interpretation=="NEGATIVE") %>%
+  filter(Test_date >= "2021-11-01")%>%
+  filter(Grouping=="COVID PCR (Active)"|Grouping=="POC Test")-> COVIDResults_PCR
+
+lab_data %>%
+  filter(collection_date >= "2021-11-01")%>%
+  distinct()-> lab_data_PCR
 
 #Marking all entries that got a confirmatory PCR test
 COVIDResults_conf<-COVIDResults%>%
@@ -621,3 +636,23 @@ merge2<-merge2%>%
   select(PatientID)
 
 merge3<-inner_join(COVIDResults_confPCR, merge2, by="PatientID")
+
+
+#Adding in vaccination and demographic data
+ChiefComplaint <- as.data.table(ChiefComplaint) 
+
+ChiefComplaint %>% 
+  rename(Complaint = `Chief Complaint`,
+         Vax_date = `Adjusted Visit Date`,
+         Vax_rec = `COVID-19 Vaccine?`,
+         Vax_manu = `Which vaccine did you receive?`,
+         Fully_vax = `> 2 weeks since final dose?`) -> ChiefComplaint
+
+Visit <- as.data.table(Visit)
+
+Visit %>%
+  rename(Visit_date = `Adjusted Visit Date`,
+         Facility_Address = `Facility Address`,
+         Facility_Name = `Facility Name`,
+         Facility_City =  `Facility City`,
+         Facility_State =  `Facility State`) -> Visit
