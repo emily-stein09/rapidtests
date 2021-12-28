@@ -45,8 +45,6 @@ Visit.demo <- readRDS("Visit_demo_updatedrace.RDS")
 lab_data$collection_date<-as.Date(lab_data$`Collection Date`, format="%Y/%m/%d")
 
 ####Cleaning chief complaints####
-#on hold for now. main issues: vaccination status will not be able to link to date since visit dates are not reliable.
-#If really interested in future, perhaps we could try to link vaccination dates to lab dates
 ChiefComplaint <- as.data.table(ChiefComplaint) 
 
 #Renaming chief complaints variables and changing the character string to all upper case
@@ -55,8 +53,13 @@ ChiefComplaint %>%
          Vax_date = `Adjusted Visit Date`,
          Vax_rec = `COVID-19 Vaccine?`,
          Vax_manu = `Which vaccine did you receive?`,
-         Fully_vax = `> 2 weeks since final dose?`)%>%
+         Fully_vax = `> 2 weeks since final dose?`,
+         D1=`Diagnosis 1`,
+         D2=`Diagnosis 2`,
+         D3=`Diagnosis 3`,
+         D4=`Diagnosis 4`)%>%
   mutate_if(is.character, str_to_upper)-> ChiefComplaint
+
 
 #Generating lists of chosen symptoms
 chills_terms=c("CHILLS", "CHILLS (WITHOUT FEVER)", "CHILLS WITH FEVER", 
@@ -126,7 +129,7 @@ chest.pain_terms=c("ACUTE CHEST PAIN", "ATYPICAL CHEST PAIN", "CHEST PAIN", "CHE
                    "SENSATION OF CHEST TIGHTNESS")
 confusion_terms=c("ALTERED MENTAL STATE", "ALTERED MENTAL STATUS", "ALTERED MENTAL STATUS, UNSPECIFIED", "CONFUSION")
 #Creating symptom categories out of the chief complaints dataset using the symptoms lists
-symptoms<-chiefcomppos%>%
+ChiefComplaint<-ChiefComplaint%>%
   mutate(chills = ifelse(Chief.Complaint %in% chills_terms|
                            D1 %in% chills_terms|
                            D2 %in% chills_terms|
@@ -197,6 +200,49 @@ symptoms<-chiefcomppos%>%
                               D2 %in% confusion_terms|
                               D3 %in% confusion_terms|
                               D4 %in% confusion_terms, "Yes", NA))
+
+ChiefComplaint_Vax<-ChiefComplaint%>%
+  select(VisitID, Vax_date, Vax_rec, Vax_manu, Fully_vax, chills, cough, fever, fatigue, body.ache, headache, taste.smell,
+         sore.throat, congestion.nose, nausea.vomit, diarrhea, sob, chest.pain, confusion)%>%
+  distinct()
+
+ChiefComplaint_Vax<-ChiefComplaint_Vax%>%
+  mutate_at(vars(chills), funs('chills_old' = na_if(., ''))) %>% 
+  # set grouping for following operations
+  group_by(VisitID) %>% 
+  # for added columns, fill values downwards and upwards within each group
+  fill(chills) %>% 
+  fill(chills, .direction = 'up') %>%
+  # reinsert empty strings for NAs
+  mutate_at(vars(chills), funs(coalesce(., factor(NA))))%>%
+  ungroup()
+
+ChiefComplaint_Vax<-ChiefComplaint_Vax%>%
+  mutate_at(vars(Vax_rec), funs('Vax_rec_old' = na_if(., ''))) %>% 
+  # set grouping for following operations
+  group_by(VisitID) %>% 
+  # for added columns, fill values downwards and upwards within each group
+  fill(Vax_rec) %>% 
+  fill(Vax_rec, .direction = 'up') %>%
+  # reinsert empty strings for NAs
+  mutate_at(vars(Vax_rec), funs(coalesce(., factor(NA))))%>%
+  ungroup()
+
+ChiefComplaint_Vax<-ChiefComplaint_Vax%>%
+  mutate_at(vars(Fully_vax), funs('Vax_rec_old' = na_if(., ''))) %>% 
+  # set grouping for following operations
+  group_by(VisitID) %>% 
+  # for added columns, fill values downwards and upwards within each group
+  fill(Fully_vax) %>% 
+  fill(Fully_vax, .direction = 'up') %>%
+  # reinsert empty strings for NAs
+  mutate_at(vars(Fully_vax), funs(coalesce(., factor(NA))))%>%
+  ungroup()
+
+ChiefComplaint_Vax_Clean<-ChiefComplaint_Vax%>%
+  select(VisitID, Fully_vax, Vax_rec, chills)%>%
+  distinct()
+
 ####CLEANING VISIT DATA. DONE AND SAVED UPDATED DATASET FOR 12/2021 DATA####
 Visit <- as.data.table(Visit)
 
@@ -670,7 +716,7 @@ COVIDResults %>%
 
 COVIDResults%>%
   filter(Confirmatory.PCR=="1")%>%
-  filter(Test_date >= "2020-03-01" & Test_date<"2021-11-01")%>%
+  filter(Test_date >= "2020-03-01")%>%
   distinct()-> COVIDResults_confPCR     #959750     
 
 COVIDResults_confPCR <- COVIDResults_confPCR %>%
@@ -679,7 +725,7 @@ COVIDResults_confPCR <- COVIDResults_confPCR %>%
     mutate(Visit = 1:n())
 
 #Saving COVID Results file
-saveRDS(COVIDResults_confPCR, file = "COVIDResults_confPCR")
+saveRDS(COVIDResults_confPCR, file = "COVIDResults_confPCR.RDS")
 #If we restrict to those who only came to cityMD once, can link their vaccine and symptoms data
 
 #Marking all entries that got a confirmatory PCR test
@@ -699,18 +745,90 @@ saveRDS(COVIDResults_confPCR, file = "COVIDResults_confPCR")
 
 ###MERGING DATA####
 #Merge Visit data with covid results to get patient IDs for all results 
-merged.data1 <- inner_join(COVIDResults_confPCR, Visit.demo, by="PatientID") #innerjoin because out of state covid results need to be filtered out (6994684)
+setwd("D:/12-15-2021")
+COVIDResults<-readRDS("COVIDResults_confPCR")
+Visit.demo<-readRDS("Visit_demo_updatedrace.RDS")
+
+merged.data1 <- inner_join(COVIDResults, Visit.demo, by="PatientID") #innerjoin because out of state covid results need to be filtered out (6994684)
 
 merged.data1<-merged.data1%>%
   mutate(antigen_result=case_when(Lab.Result.Interpretation=="NEGATIVE" & Result.PCR=="NEGATIVE" ~ "TN",
                                   Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="POSITIVE" ~ "TP",
                                   Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="NEGATIVE" ~ "FP",
                                   Lab.Result.Interpretation=="NEGATIVE" & Result.PCR=="POSITIVE" ~ "FN"))
+look<-merged.data1%>%
+  ungroup()%>%
+  select(antigen_result, Lab.Result.Interpretation, Result.PCR)
 ###NEXT STEP###
 #Create date blocks and look at things over time
 #merge vaccine and visit data
-#merged.data2 <- left_join(merged.data1, ChiefComplaint, by="VisitID") #9226028
+merged.data2 <- left_join(merged.data1, ChiefComplaint_Vax_Clean, by="VisitID") #9226028
+merged.data3<-merged.data2%>%
+  filter(!is.na(antigen_result))
+#date blocks
+library(lubridate)
+cut_dates<-ymd(c("2020-10-01",
+                 "2020-11-01",
+                 "2020-12-01",
+                 "2021-01-01",
+                 "2021-02-01",
+                 "2021-03-01",
+                 "2021-04-01",
+                 "2021-05-01",
+                 "2021-06-01",
+                 "2021-07-01",
+                 "2021-08-01",
+                 "2021-09-01",
+                 "2021-10-01",
+                 "2021-10-31"))
+new_cut<-cut(merged.data2$Test_date, cut_dates, include.lowest=TRUE)
 
+merged.data2<-merged.data2%>%
+  mutate(Updated_Date=factor(new_cut, labels=c("October 2020",
+                             "November 2020",
+                             "December 2020",
+                             "January 2021",
+                             "February 2021",
+                             "March 2021",
+                             "April 2021", 
+                             "May 2021",
+                             "June 2021",
+                             "July 2021",
+                             "August 2021",
+                             "September 2021",
+                             "October 2021")))
+#Table 1
+table1<-merged.data3%>%
+  select(PatientID, Age, racecat, new_racecat, Ethnicity, Fully_vax, Vax_rec)%>%
+  distinct()%>%
+  select(-PatientID)
+library(ggplot2)
+library(gtsummary)
+table1<-tbl_summary(table1,
+              label=list(
+                Age ~ "Age",
+                racecat ~"Race categorizations: Madhura's coding",
+                new_racecat ~"Race categorizations: Saba's coding",
+                Fully_vax ~ "Fully vaccinated",
+                Vax_rec ~ "At least one dose received"))
+table1
+
+#Table 2
+table2<-merged.data2%>%
+  select(Symptomatic, Vax_rec, Fully_vax, antigen_result, Updated_Date)
+
+table2<-tbl_summary(table2,
+                    by="antigen_result",
+                    label=list(
+                      Updated_Date ~ "Test date",
+                      Vax_rec ~ "At least one dose received",
+                      Fully_vax ~ "Fully vaccinated"
+                    ))
+table2
+
+ggplot(data=merged.data2, aes(x=Updated_Date))+
+         geom_bar() +
+  facet_wrap("antigen_result")
 #####Lab data####
 lab_data<-lab_data%>%
   rename(LabPatientID=`Patient ID`)%>%
