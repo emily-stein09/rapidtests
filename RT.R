@@ -202,20 +202,8 @@ ChiefComplaint<-ChiefComplaint%>%
                               D4 %in% confusion_terms, "Yes", NA))
 
 ChiefComplaint_Vax<-ChiefComplaint%>%
-  select(VisitID, Vax_date, Vax_rec, Vax_manu, Fully_vax, chills, cough, fever, fatigue, body.ache, headache, taste.smell,
-         sore.throat, congestion.nose, nausea.vomit, diarrhea, sob, chest.pain, confusion)%>%
+  select(VisitID, Vax_date, Vax_rec, Vax_manu, Fully_vax)%>%
   distinct()
-
-ChiefComplaint_Vax<-ChiefComplaint_Vax%>%
-  mutate_at(vars(chills), funs('chills_old' = na_if(., ''))) %>% 
-  # set grouping for following operations
-  group_by(VisitID) %>% 
-  # for added columns, fill values downwards and upwards within each group
-  fill(chills) %>% 
-  fill(chills, .direction = 'up') %>%
-  # reinsert empty strings for NAs
-  mutate_at(vars(chills), funs(coalesce(., factor(NA))))%>%
-  ungroup()
 
 ChiefComplaint_Vax<-ChiefComplaint_Vax%>%
   mutate_at(vars(Vax_rec), funs('Vax_rec_old' = na_if(., ''))) %>% 
@@ -240,8 +228,11 @@ ChiefComplaint_Vax<-ChiefComplaint_Vax%>%
   ungroup()
 
 ChiefComplaint_Vax_Clean<-ChiefComplaint_Vax%>%
-  select(VisitID, Fully_vax, Vax_rec, chills)%>%
+  select(VisitID, Fully_vax, Vax_rec)%>%
   distinct()
+
+#Saving COVID Results file
+saveRDS(ChiefComplaint_Vax_Clean, file = "ChiefComplaint_Vax_Clean.RDS")
 
 ####CLEANING VISIT DATA. DONE AND SAVED UPDATED DATASET FOR 12/2021 DATA####
 Visit <- as.data.table(Visit)
@@ -685,7 +676,7 @@ rm(updated.race, updatedrace_orig_race_Oct)
 saveRDS(Visit.demo, file = "Visit_demo_updatedrace.RDS")
 
 ###CLEANING COVID RESULTS####
-
+saveRDS(merged.data3, file="final.dataset.RDS")
 COVIDResults <- as.data.table(COVIDResults)
 
 COVIDResults %>%
@@ -764,7 +755,19 @@ look<-merged.data1%>%
 #merge vaccine and visit data
 merged.data2 <- left_join(merged.data1, ChiefComplaint_Vax_Clean, by="VisitID") #9226028
 merged.data3<-merged.data2%>%
-  filter(!is.na(antigen_result))
+  filter(!is.na(antigen_result))%>%
+  ungroup()
+
+#Assume those who do not have 'symptomatic' entered had no symptoms
+merged.data3<-merged.data3%>%
+  mutate(Symptomatic=ifelse(is.na(Symptomatic), "Don't know", Symptomatic),
+         Symptomatic_new=ifelse(Symptomatic=="Don't know", "No", Symptomatic))%>%
+  ungroup()
+
+#Creating group "don't know" for vaccination statuses
+merged.data3<-merged.data3%>%
+  mutate(Fully_vax=ifelse(is.na(Fully_vax), "Unknown", Fully_vax),
+         Vax_rec=ifelse(is.na(Vax_rec), "Unknown", Vax_rec))
 #date blocks
 library(lubridate)
 cut_dates<-ymd(c("2020-10-01",
@@ -781,9 +784,9 @@ cut_dates<-ymd(c("2020-10-01",
                  "2021-09-01",
                  "2021-10-01",
                  "2021-10-31"))
-new_cut<-cut(merged.data2$Test_date, cut_dates, include.lowest=TRUE)
+new_cut<-cut(merged.data3$Test_date, cut_dates, include.lowest=TRUE)
 
-merged.data2<-merged.data2%>%
+merged.data3<-merged.data3%>%
   mutate(Updated_Date=factor(new_cut, labels=c("October 2020",
                              "November 2020",
                              "December 2020",
@@ -797,38 +800,85 @@ merged.data2<-merged.data2%>%
                              "August 2021",
                              "September 2021",
                              "October 2021")))
+#estimating dates for strain dominance using NYT interactive tracker https://www.nytimes.com/interactive/2021/health/coronavirus-variant-tracker.html
+merged.data3<-merged.data3%>%
+  mutate(Variant=ifelse(Updated_Date %in% c("October 2020","November 2020","December 2020"),"Epsilon",
+                        ifelse(Updated_Date %in% c("January 2021","February 2021","March 2021"), "Alpha",
+                               ifelse(Updated_Date %in% c("April 2021","May 2021"), "Beta",
+                                      ifelse(Updated_Date %in% c("June 2021","July 2021","August 2021","September 2021","October 2021"), "Delta", NA)))))
+
+merged.data3<-merged.data3%>%
+  mutate(Variant=relevel(as.factor(Variant), "Epsilon", "Alpha", "Beta", "Delta"))
+
+#creating age groups
+merged.data3<-merged.data3%>%
+  mutate(Age_Group=ifelse())
+
 #Table 1
 table1<-merged.data3%>%
-  select(PatientID, Age, racecat, new_racecat, Ethnicity, Fully_vax, Vax_rec)%>%
+  select(PatientID, Age, Gender, racecat, new_racecat, Ethnicity)%>%
   distinct()%>%
   select(-PatientID)
-library(ggplot2)
-library(gtsummary)
 table1<-tbl_summary(table1,
               label=list(
                 Age ~ "Age",
-                racecat ~"Race categorizations: Madhura's coding",
-                new_racecat ~"Race categorizations: Saba's coding",
-                Fully_vax ~ "Fully vaccinated",
-                Vax_rec ~ "At least one dose received"))
+                racecat ~"Race categorizations: Madhura's coding"))
 table1
 
-#Table 2
-table2<-merged.data2%>%
-  select(Symptomatic, Vax_rec, Fully_vax, antigen_result, Updated_Date)
+#Table 2, disease characteristics by testing result
+table2<-merged.data3%>%
+  select(Age, Gender, racecat, Symptomatic, Symptomatic_new, Vax_rec, Fully_vax, antigen_result, Variant, Updated_Date)
 
 table2<-tbl_summary(table2,
                     by="antigen_result",
                     label=list(
                       Updated_Date ~ "Test date",
+                      racecat ~ "Madhura's coding",
+                      Symptomatic_new ~ "Symptomatic, assuming blank entries were not symptomatic",
                       Vax_rec ~ "At least one dose received",
                       Fully_vax ~ "Fully vaccinated"
-                    ))
+                    ))%>%
+  add_p()
+
 table2
 
+#table 3, disease characteristics by symptomatic status ASSUMING all those who don't have anythign entered were asymptomatic
+table3<-merged.data3%>%
+  select(Symptomatic_new, Vax_rec, Fully_vax, antigen_result, Updated_Date)%>%
+  ungroup()
+
+table3<-tbl_summary(table3,
+                    by="Symptomatic_new",
+                    label=list(
+                      Updated_Date ~ "Test date",
+                      Vax_rec ~ "At least one dose received",
+                      Fully_vax ~ "Fully vaccinated",
+                      antigen_result ~ "Test result"
+                    ))%>%
+  add_p()
+table3
+
+#table4, disease characteristics and test results by variant
+table4<-merged.data3%>%
+  select(Symptomatic_new, Vax_rec, Fully_vax, antigen_result, Updated_Date, Variant)%>%
+  ungroup()
+
+table4<-tbl_summary(table4,
+                    by="Variant",
+                    label=list(
+                      Updated_Date ~ "Test date",
+                      Vax_rec ~ "At least one dose received",
+                      Fully_vax ~ "Fully vaccinated",
+                      antigen_result ~ "Test result"
+                    ))%>%
+  add_p()
+table4
+  
 ggplot(data=merged.data2, aes(x=Updated_Date))+
          geom_bar() +
   facet_wrap("antigen_result")
+
+
 #####Lab data####
 lab_data<-lab_data%>%
   rename(LabPatientID=`Patient ID`)%>%
@@ -852,11 +902,6 @@ CMD_ID<-CMD_ID%>%
   mutate(PatientID=PatientID+10)%>%
   distinct() #14573
 
-#Taking Patient IDs from the merged data
-COVIDResults_confPCR%>%
-  select(PatientID, Lab.Result.Interpretation, Result.PCR, Confirmatory.PCR.y)%>%
-  distinct()->listIDs
-
 #Merged data 3 includes Covid results and lab data
 merged.data3<-inner_join(CMD_ID, COVIDResults_confPCR, by="PatientID") #10243 matches
 
@@ -865,6 +910,7 @@ merged.data3<-merged.data3%>%
                                   Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="POSITIVE" ~ "TP",
                                   Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="NEGATIVE" ~ "FP",
                                   Lab.Result.Interpretation=="NEGATIVE" & Result.PCR=="POSITIVE" ~ "FN"))
+
 
 #Filling in symptomatic visits if yes or no was entered for a visit
 PCR_results<-merged.data3%>%
@@ -943,3 +989,9 @@ Visit %>%
          Facility_Name = `Facility Name`,
          Facility_City =  `Facility City`,
          Facility_State =  `Facility State`) -> Visit
+
+save.image()
+
+getwd()
+
+
