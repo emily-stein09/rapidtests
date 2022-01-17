@@ -690,6 +690,9 @@ COVIDResults %>%
 
 COVIDResults$Test_date <- as.Date(COVIDResults$Test_date, format="%m/%d/%Y")
 
+look<-COVIDResults%>%
+  filter(`Rapid Order Confirmatory PCR Ordered`==1)%>%
+  head()
 #Filtering on Covid test given, test date, and receipt of confirmatory PCR
 #Currently have incomplete data post 11/1, pasting in "symptomatic" for each visit a person reported
 #symptoms
@@ -739,7 +742,7 @@ saveRDS(COVIDResults_confPCR, file = "COVIDResults_confPCR.RDS")
 setwd("D:/12-15-2021")
 COVIDResults<-readRDS("COVIDResults_confPCR")
 Visit.demo<-readRDS("Visit_demo_updatedrace.RDS")
-
+merged.data3<-readRDS()
 merged.data1 <- inner_join(COVIDResults, Visit.demo, by="PatientID") #innerjoin because out of state covid results need to be filtered out (6994684)
 
 merged.data1<-merged.data1%>%
