@@ -676,7 +676,6 @@ rm(updated.race, updatedrace_orig_race_Oct)
 saveRDS(Visit.demo, file = "Visit_demo_updatedrace.RDS")
 
 ###CLEANING COVID RESULTS####
-saveRDS(merged.data3, file="final.dataset.RDS")
 COVIDResults <- as.data.table(COVIDResults)
 
 COVIDResults %>%
@@ -750,9 +749,7 @@ merged.data1<-merged.data1%>%
                                   Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="POSITIVE" ~ "TP",
                                   Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="NEGATIVE" ~ "FP",
                                   Lab.Result.Interpretation=="NEGATIVE" & Result.PCR=="POSITIVE" ~ "FN"))
-look<-merged.data1%>%
-  ungroup()%>%
-  select(antigen_result, Lab.Result.Interpretation, Result.PCR)
+
 ###NEXT STEP###
 #Create date blocks and look at things over time
 #merge vaccine and visit data
@@ -816,7 +813,9 @@ merged.data3<-merged.data3%>%
 #creating age groups
 merged.data3<-merged.data3%>%
   mutate(Age_Group=ifelse())
+saveRDS(merged.data3, file="final.dataset.RDS")
 
+####TABLES AND ANALYSES####
 #Table 1
 table1<-merged.data3%>%
   select(PatientID, Age, Gender, racecat, new_racecat, Ethnicity)%>%
@@ -876,10 +875,225 @@ table4<-tbl_summary(table4,
                     ))%>%
   add_p()
 table4
-  
-ggplot(data=merged.data2, aes(x=Updated_Date))+
-         geom_bar() +
-  facet_wrap("antigen_result")
+ 
+
+####Sensitivity and specificity by month####
+october_2020<-main%>%
+  filter(Updated_Date=="October 2020")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="October 2020")
+
+november_2020<-main%>%
+  filter(Updated_Date=="November 2020")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="November 2020")
+
+december_2020<-main%>%
+  filter(Updated_Date=="December 2020")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="December 2020")
+
+jan_2021<-main%>%
+  filter(Updated_Date=="January 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="January 2021")
+
+feb_2021<-main%>%
+  filter(Updated_Date=="February 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="February 2021")
+
+march_2021<-main%>%
+  filter(Updated_Date=="March 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="March 2021")
+
+april_2021<-main%>%
+  filter(Updated_Date=="April 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="April 2021")
+
+may_2021<-main%>%
+  filter(Updated_Date=="May 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="May 2021")
+
+june_2021<-main%>%
+  filter(Updated_Date=="June 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="June 2021")
+
+july_2021<-main%>%
+  filter(Updated_Date=="July 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="July 2021")
+
+august_2021<-main%>%
+  filter(Updated_Date=="August 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="August 2021")
+
+
+september_2021<-main%>%
+  filter(Updated_Date=="September 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="September 2021")
+
+october_2021<-main%>%
+  filter(Updated_Date=="October 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="October 2021")
+
+month_all=rbind(october_2020, november_2020, december_2020, jan_2021, feb_2021, march_2021,
+                 april_2021, may_2021, june_2021, july_2021, august_2021, september_2021, october_2021)
+
+month_all<-month_all%>%
+  ungroup()%>%
+  mutate(Month=as.factor(Month))%>%
+  mutate(Month=Month, levels=c(
+                       "October 2020",
+                       "November 2020",
+                       "December 2020",
+                       "January 2021",
+                       "February 2021",
+                       "March 2021",
+                       "April 2021",
+                       "May 2021",
+                       "June 2021",
+                       "July 2021",
+                       "August 2021",
+                       "September 2021",
+                       "October 2021"))
+month_all$Month <- factor(month_all$Month, levels=c(
+  "October 2020",
+  "November 2020",
+  "December 2020",
+  "January 2021",
+  "February 2021",
+  "March 2021",
+  "April 2021",
+  "May 2021",
+  "June 2021",
+  "July 2021",
+  "August 2021",
+  "September 2021",
+  "October 2021"))
+
+month_sens=month_all%>%
+  select(sensitivity, Month, name)%>%
+  mutate(Test=ifelse(name=="antigen_result", "sensitivity", NA))%>%
+  rename(Test_result=sensitivity)
+
+month_spec=month_all%>%
+  select(specificity, Month, name)%>%
+  mutate(Test=ifelse(name=="antigen_result", "specificity", NA))%>%
+  rename(Test_result=specificity)
+
+spec_sens<-rbind(month_sens, month_spec)
+
+sensitivity.line<-ggplot(data=month_sens, aes(x=Month, y=Test_result, group=1))+
+         geom_line()+
+  geom_point()
+
+specificity.line<-ggplot(data=month_spec, aes(x=Month, y=Test_result, group=1))+
+  geom_line()+
+  geom_point()
+
+all.line<-ggplot(data=spec_sens, aes(x=Month, y=Test_result, group=Test))+
+  geom_line(aes(linetype=Test))+
+  geom_point()
+
 
 
 #####Lab data####
@@ -905,96 +1119,22 @@ CMD_ID<-CMD_ID%>%
   mutate(PatientID=PatientID+10)%>%
   distinct() #14573
 
-#Merged data 3 includes Covid results and lab data
-merged.data3<-inner_join(CMD_ID, COVIDResults_confPCR, by="PatientID") #10243 matches
+look<-CMD_ID%>%
+  select()
 
-merged.data3<-merged.data3%>%
-  mutate(antigen_result=case_when(Lab.Result.Interpretation=="NEGATIVE" & Result.PCR=="NEGATIVE" ~ "TN",
-                                  Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="POSITIVE" ~ "TP",
-                                  Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="NEGATIVE" ~ "FP",
-                                  Lab.Result.Interpretation=="NEGATIVE" & Result.PCR=="POSITIVE" ~ "FN"))
+#Main includes Covid results and lab data
+look<-inner_join(CMD_ID, main, by="PatientID") #10243 matches
+library(lubridate)
+look2<-look%>%
+  mutate(lab_date=mdy(`Collection Date`))%>%
+  mutate(timebtwn=difftime(Test_date, lab_date, units="days"))
+  
+look2<-look2%>%
+  str_remove_all("days")
+  mutate(acceptable_time=ifelse(timebtwn<="7 days"|timebtwn<="-7 days", 0, 1))
 
+check<-look2%>%
+  select(timebtwn, lab_date, Test_date, acceptable_time)
 
-#Filling in symptomatic visits if yes or no was entered for a visit
-PCR_results<-merged.data3%>%
-  filter(Test=="SARS CoV 2 E Gene"|Test=="SARS CoV 2 ORF 1 Gene")%>%
-  mutate_at(vars(Symptomatic), funs('Symptomatic_old' = na_if(., ''))) %>% 
-  # set grouping for following operations
-  group_by(PatientID, Test_date) %>% 
-  # for added columns, fill values downwards and upwards within each group
-  fill(Symptomatic) %>% 
-  fill(Symptomatic, .direction = 'up') %>%
-  # reinsert empty strings for NAs
-  mutate_at(vars(Symptomatic), funs(coalesce(., factor(NA))))%>%
-  ungroup()%>%
-  distinct()
-
-Antigen_results<-merged.data3%>%
-  filter(Test=="COVID-19 Spike Total Ab")%>%
-  mutate_at(vars(Symptomatic), funs('Symptomatic_old' = na_if(., ''))) %>% 
-  # set grouping for following operations
-  group_by(PatientID, Test_date) %>% 
-  # for added columns, fill values downwards and upwards within each group
-  fill(Symptomatic) %>% 
-  fill(Symptomatic, .direction = 'up') %>%
-  # reinsert empty strings for NAs
-  mutate_at(vars(Symptomatic), funs(coalesce(., factor(NA))))%>%
-  ungroup()%>%
-  distinct()
-
-PCR_IDs<-PCR_results%>%
-  select(PatientID)%>%
-  distinct()
-
-Antigen_IDs<-Antigen_results%>%
-  select(PatientID)%>%
-  distinct()
-
-merge<-inner_join(PCR_IDs, Antigen_IDs, by="PatientID")
-
-look<-lab_data%>%
-  filter(LabPatientID=="CMD6420116")
-
-###Only 20 IDs have CT values for both PCR and antigen results?!
-
-PCR_results<-lab_data%>%
-  filter(Test=="SARS CoV 2 E Gene"|Test=="SARS CoV 2 ORF 1 Gene")
-
-Antigen_results<-lab_data%>%
-  filter(Test=="COVID-19 Spike Total Ab")
-
-merge<-inner_join(Antigen_results, PCR_results, by="LabPatientID")
-
-merge2<-inner_join(merge, CUNY_Labs, by="LabPatientID")
-
-
-merge2<-merge2%>%
-  select(PatientID)
-
-merge3<-inner_join(COVIDResults_confPCR, merge2, by="PatientID")
-
-
-#Adding in vaccination and demographic data
-ChiefComplaint <- as.data.table(ChiefComplaint) 
-
-ChiefComplaint %>% 
-  rename(Complaint = `Chief Complaint`,
-         Vax_date = `Adjusted Visit Date`,
-         Vax_rec = `COVID-19 Vaccine?`,
-         Vax_manu = `Which vaccine did you receive?`,
-         Fully_vax = `> 2 weeks since final dose?`) -> ChiefComplaint
-
-Visit <- as.data.table(Visit)
-
-Visit %>%
-  rename(Visit_date = `Adjusted Visit Date`,
-         Facility_Address = `Facility Address`,
-         Facility_Name = `Facility Name`,
-         Facility_City =  `Facility City`,
-         Facility_State =  `Facility State`) -> Visit
-
-save.image()
-
-getwd()
 
 
