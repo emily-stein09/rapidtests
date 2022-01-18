@@ -14,7 +14,10 @@ library(tidyr)
 library(ggplot2)
 library(xts)
 library(tidyverse)
+library(lubridate)
 
+#set wd
+setwd("D:/12-15-2021")
 ###Pulling in and binding lab data into one datatable
 map_df_read_csv <- function(path, pattern = "*.csv") {
   list.files(path, pattern, full.names = TRUE) %>% 
@@ -43,6 +46,8 @@ ChiefComplaint$Vax_date <- as.Date(ChiefComplaint$Vax_date, format="%m/%d/%Y")
 Visit.demo <- readRDS("Visit_demo_updatedrace.RDS")
 
 lab_data$collection_date<-as.Date(lab_data$`Collection Date`, format="%Y/%m/%d")
+
+main <-readRDS("final.dataset.RDS")
 
 ####Cleaning chief complaints####
 ChiefComplaint <- as.data.table(ChiefComplaint) 
@@ -689,9 +694,6 @@ COVIDResults %>%
 
 COVIDResults$Test_date <- as.Date(COVIDResults$Test_date, format="%m/%d/%Y")
 
-look<-COVIDResults%>%
-  filter(`Rapid Order Confirmatory PCR Ordered`==1)%>%
-  head()
 #Filtering on Covid test given, test date, and receipt of confirmatory PCR
 #Currently have incomplete data post 11/1, pasting in "symptomatic" for each visit a person reported
 #symptoms
@@ -738,7 +740,6 @@ saveRDS(COVIDResults_confPCR, file = "COVIDResults_confPCR.RDS")
 
 ###MERGING DATA####
 #Merge Visit data with covid results to get patient IDs for all results 
-setwd("D:/12-15-2021")
 COVIDResults<-readRDS("COVIDResults_confPCR")
 Visit.demo<-readRDS("Visit_demo_updatedrace.RDS")
 merged.data3<-readRDS()
@@ -750,8 +751,6 @@ merged.data1<-merged.data1%>%
                                   Lab.Result.Interpretation=="POSITIVE" & Result.PCR=="NEGATIVE" ~ "FP",
                                   Lab.Result.Interpretation=="NEGATIVE" & Result.PCR=="POSITIVE" ~ "FN"))
 
-###NEXT STEP###
-#Create date blocks and look at things over time
 #merge vaccine and visit data
 merged.data2 <- left_join(merged.data1, ChiefComplaint_Vax_Clean, by="VisitID") #9226028
 merged.data3<-merged.data2%>%
@@ -1105,13 +1104,6 @@ lab_data<-lab_data%>%
 CMD_ID<-lab_data%>%
   filter(CMD_ID==TRUE) #14573
 
-###Not using numerical IDs since they do not match###
-#NUM_ID<-lab_data%>%
-#  filter(CMD_ID==FALSE)%>%
-#  mutate(PatientID=as.numeric(LabPatientID))%>%
-#  mutate(PatientID=PatientID+10)#4575
-
-
 #Removing CMD in front of CMD IDs and adding 10, renaming as Patient ID to merge with COVID Results
 CMD_ID<-CMD_ID%>%
   mutate(PatientID=str_replace(LabPatientID, "CMDA|CMD", ""))%>%
@@ -1119,22 +1111,29 @@ CMD_ID<-CMD_ID%>%
   mutate(PatientID=PatientID+10)%>%
   distinct() #14573
 
-look<-CMD_ID%>%
-  select()
 
 #Main includes Covid results and lab data
-look<-inner_join(CMD_ID, main, by="PatientID") #10243 matches
-library(lubridate)
-look2<-look%>%
+CT_raw<-inner_join(CMD_ID, main, by="PatientID") #10243 matches
+
+CT_clean<-CT_raw%>%
   mutate(lab_date=mdy(`Collection Date`))%>%
-  mutate(timebtwn=difftime(Test_date, lab_date, units="days"))
+  mutate(timebtwn=difftime(Test_date, lab_date, units="days"))%>%
+  mutate(acceptable_time=ifelse(timebtwn<=7 & timebtwn>=-7, 1, 0))%>%
+  filter(acceptable_time==1 & Test!="COVID-19 Spike Total Ab" & antigen_result!="TN")%>%
+  mutate(antigen_result=as.factor(antigen_result))%>%
+  mutate(ct_result=as.numeric(`Num Res`))
   
-look2<-look2%>%
-  str_remove_all("days")
-  mutate(acceptable_time=ifelse(timebtwn<="7 days"|timebtwn<="-7 days", 0, 1))
+#Table
+CT_table<-CT_clean%>%
+  select(antigen_result, Test, ct_result)
 
-check<-look2%>%
-  select(timebtwn, lab_date, Test_date, acceptable_time)
+CT_table<-tbl_summary(CT_table,
+                      by=antigen_result,
+                      label=list(
+                        ct_result ~ "Num Res"))
+#Figure: Boxplot of CT values by test results
 
-
-
+figure4<-ggplot(CT_clean, aes(x=antigen_result, y=ct_result)) + 
+  geom_boxplot(notch=TRUE) + 
+  geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
+  facet_wrap("Test")
