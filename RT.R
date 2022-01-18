@@ -844,12 +844,12 @@ table2<-tbl_summary(table2,
 table2
 
 #table 3, disease characteristics by symptomatic status ASSUMING all those who don't have anythign entered were asymptomatic
-table3<-merged.data3%>%
-  select(Symptomatic_new, Vax_rec, Fully_vax, antigen_result, Updated_Date)%>%
+table3<-main%>%
+  select(Symptomatic, Vax_rec, Fully_vax, antigen_result, Updated_Date)%>%
   ungroup()
 
 table3<-tbl_summary(table3,
-                    by="Symptomatic_new",
+                    by="Symptomatic",
                     label=list(
                       Updated_Date ~ "Test date",
                       Vax_rec ~ "At least one dose received",
