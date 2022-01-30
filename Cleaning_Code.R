@@ -742,6 +742,7 @@ merged.data3<-merged.data3%>%
 merged.data3<-merged.data3%>%
   mutate(Fully_vax=ifelse(is.na(Fully_vax), "Unknown", Fully_vax),
          Vax_rec=ifelse(is.na(Vax_rec), "Unknown", Vax_rec))
+
 #date blocks
 library(lubridate)
 cut_dates<-ymd(c("2020-10-01",
@@ -791,6 +792,13 @@ merged.data3<-merged.data3%>%
 
 
 saveRDS(merged.data3, file="final.dataset.RDS")
+
+#Creating vaccination status: fully, partially, unvaccinated
+main<-main%>%
+  mutate(vax_status=case_when(Fully_vax=="Yes" ~ "Fully vaccinated",
+                              Fully_vax!="Yes"& Vax_rec=="Yes" ~ "Partially vaccinated",
+                              Fully_vax!="Yes" & (Vax_rec=="No"|Vax_rec=="No response") ~ "Unvaccinated"))
+
 
 ####Load cleaned final dataset####
 main<-readRDS("final.dataset.RDS")
@@ -855,6 +863,16 @@ table4<-tbl_summary(table4,
                     ))%>%
   add_p()
 table4
+
+#Vaccination status post 4/1/2021
+#Creating vaccination status: fully, partially, unvaccinated
+main<-main%>%
+  mutate(vax_status=case_when(Fully_vax=="Yes" ~ "Fully vaccinated",
+                              Fully_vax!="Yes"& Vax_rec=="Yes" ~ "Partially vaccinated",
+                              Fully_vax!="Yes" & (Vax_rec=="No"|Vax_rec=="No response") ~ "Unvaccinated"))
+
+vax<-main%>%
+  filter(Test_date>="2021-04-01" & !is.na(vax_status))
 
 
 ####Sensitivity and specificity by month####
@@ -1104,6 +1122,9 @@ CT_clean<-CT_raw%>%
   mutate(antigen_result=as.factor(antigen_result))%>%
   mutate(ct_result=as.numeric(`Num Res`))
 
+CT_clean<-CT_clean%>%
+  filter(antigen_result!="TN")
+
 #Table
 CT_table<-CT_clean%>%
   select(antigen_result, Test, ct_result)
@@ -1119,12 +1140,113 @@ figure4<-ggplot(CT_clean, aes(x=antigen_result, y=ct_result, color=)) +
   geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
   facet_wrap("Test")
 
+
+###CT values by vaccination status####
+#CT clean values
+CT_vax<-CT_clean%>%
+  select(PatientID, ct_result, Test, antigen_result, Test_date)
+
+vax<-vax%>%
+  select(-antigen_result)
+#Merge CT values and vax status by left join
+vax_ct<-inner_join(CT_vax, vax, by=c("PatientID","Test_date"))%>%
+  distinct()
+
 #Figure 2: Bodxplot of CT values by test results with vaccination status filled
-figure5<-ggplot(CT_clean, aes(x=antigen_result, y=ct_result)) + 
+figure5<-ggplot(vax_ct, aes(x=antigen_result, y=ct_result, color=vax_status)) + 
   geom_boxplot(notch=TRUE) + 
   geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
   facet_wrap("Test")
 
+#Figure 6: boxplot of ct values faced by vaccination status
+figure6<-ggplot(vax_ct, aes(x=antigen_result, y=ct_result, color=vax_status)) + 
+  geom_boxplot(notch=TRUE) + 
+  geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
+  facet_wrap("vax_status")
+
+#Figure 7: boxplot of ct values faceted by vaccination status binned
+vax_ct<-vax_ct%>%
+  mutate(vax_status_binned=ifelse(vax_status=="Partially vaccinated", "Unvaccinated", vax_status))
+
+figure7<-ggplot(vax_ct, aes(x=antigen_result, y=ct_result, color=vax_status_binned)) + 
+  geom_boxplot(notch=TRUE) + 
+  geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
+  facet_wrap("vax_status_binned")
+
+#Overall table#Table
+vax_ct_table<-vax_ct%>%
+  select(vax_status, Test, ct_result)
+
+vax_ct_table<-tbl_summary(vax_ct_table,
+                          by=vax_status,
+                          label=list(
+                            ct_result ~ "Num Res"))
+
+#Table of Ct values for vaccinated vs partically vaccianted vs unvaccinated
+#unvaccinated
+#unvaccinated
+unvaccinated<-vax_ct%>%
+  filter(vax_status=="Unvaccinated")
+
+vars=c("antigen_result", "Test", "ct_result")
+
+unvacc_table<-tbl_summary(unvaccinated[vars],
+                          by=antigen_result,
+                          label=list(
+                            ct_result ~ "Num Res"))%>%
+  add_p()
+
+#partially vaccinated
+partially<-vax_ct%>%
+  filter(vax_status=="Partially vaccinated")
+
+vars=c("antigen_result", "Test", "ct_result")
+
+partvacc_table<-tbl_summary(partially[vars],
+                          by=antigen_result,
+                          label=list(
+                            ct_result ~ "Num Res"))%>%
+  add_p()
+
+vaccinated<-vax_ct%>%
+  filter(vax_status=="Fully vaccinated")
+
+vacc_table<-tbl_summary(vaccinated[vars],
+                        by=antigen_result,
+                        label=list(
+                          ct_result ~ "Num Res"))%>%
+  add_p()
+
+vax_table_3level<-as_gt(tbl_merge(tbls=list(vacc_table, partvacc_table, unvacc_table),
+                                          tab_spanner = c("**Fully Vaccinated**", "**Partially Vaccinated**", "**Unvaccinated**")))%>%
+  gt::tab_header(title =  "Ct values among vaccinated and unvaccinated patients stratified by antigen result", 
+                 subtitle = paste("as of ",as.character(Sys.Date(),format="%m/%d/%Y"),sep="")) 
+
+#unvaccinated
+unvaccinated<-vax_ct%>%
+  filter(vax_status_binned=="Unvaccinated")
+
+vars=c("antigen_result", "Test", "ct_result")
+
+unvacc_table<-tbl_summary(unvaccinated[vars],
+                      by=antigen_result,
+                      label=list(
+                        ct_result ~ "Num Res"))%>%
+  add_p()
+
+vaccinated<-vax_ct%>%
+  filter(vax_status_binned=="Fully vaccinated")
+
+vacc_table<-tbl_summary(vaccinated[vars],
+                        by=antigen_result,
+                        label=list(
+                          ct_result ~ "Num Res"))%>%
+  add_p()
+
+vax_table_all<-table2all<-as_gt(tbl_merge(tbls=list(vacc_table, unvacc_table),
+                                          tab_spanner = c("**Fully Vaccinated**", "**Un/Partially Vaccinated**")))%>%
+  gt::tab_header(title =  "Ct values among vaccinated and unvaccinated patients stratified by antigen result", 
+                 subtitle = paste("as of ",as.character(Sys.Date(),format="%m/%d/%Y"),sep="")) 
 ####Generating CI for sens/spec measurements####
 library(DescTools)
 
