@@ -27,7 +27,7 @@ map_df_read_csv <- function(path, pattern = "*.csv") {
 
 lab_data<-map_df_read_csv("D:/12-15-2021/Lab Data", pattern=".CSV")
 
-#pull in raw data
+####pull in raw data####
 Visit <- read_delim("D:/12-15-2021/CUNY_Visit.csv","|", escape_double = FALSE, trim_ws = TRUE) #10273173 
 COVIDResults <- read_delim("D:/12-15-2021/CUNY_COVIDResults.csv", "|",escape_double = FALSE, 
                            col_types = list(col_character(),col_character(),col_character(),
@@ -790,10 +790,10 @@ merged.data3<-merged.data3%>%
   filter(Test_date<="2021-10-31")
 
 
-saveRDS(merged.data3, file="final.dataset.check.RDS")
+saveRDS(merged.data3, file="final.dataset.RDS")
 
 ####Load cleaned final dataset####
-main<-readRDS("final.dataset.check.RDS")
+main<-readRDS("final.dataset.RDS")
 
 ####TABLES AND ANALYSES####
 #Table 1
@@ -1114,7 +1114,86 @@ CT_table<-tbl_summary(CT_table,
                         ct_result ~ "Num Res"))
 #Figure: Boxplot of CT values by test results
 
-figure4<-ggplot(CT_clean, aes(x=antigen_result, y=ct_result)) + 
+figure4<-ggplot(CT_clean, aes(x=antigen_result, y=ct_result, color=)) + 
   geom_boxplot(notch=TRUE) + 
   geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
   facet_wrap("Test")
+
+#Figure 2: Bodxplot of CT values by test results with vaccination status filled
+figure5<-ggplot(CT_clean, aes(x=antigen_result, y=ct_result)) + 
+  geom_boxplot(notch=TRUE) + 
+  geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
+  facet_wrap("Test")
+
+####Generating CI for sens/spec measurements####
+library(DescTools)
+
+###Overall cohort
+#sensitivity
+BinomCI(19610, 66408 ,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+#specificity
+BinomCI(775233, 777695,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+###Vaccination status
+#Fully vaccinated
+#sensitivity
+BinomCI(1653, 4056,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+#specificity
+BinomCI(138039, 138200 ,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+#Partially vaccinated
+#sensitivity
+BinomCI(636, 2117,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+#specificity
+BinomCI(41153, 41221,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+#Unvaccinated
+#sensitivity
+BinomCI(3291, 13379,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+#specificity
+BinomCI(168215, 168497,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+###Symptomatic status
+#Symptomatic (null values of symptomatic patients excluded)
+#sensitivity
+BinomCI(8677, 37079 ,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+#specificity
+BinomCI(360698, 361162 ,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+#Asymptomatic
+#sensitivity
+BinomCI(10595,28118,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+#specificity
+BinomCI(399573,401510,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+#Asymptomatic (null values assumed asympomatic)
+#sensitivity
+BinomCI(10933,29329,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+#specificity
+BinomCI(414535,416533,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
