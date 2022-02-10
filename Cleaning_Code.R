@@ -1070,18 +1070,28 @@ month_all$Month <- factor(month_all$Month, levels=c(
 
 month_sens<-month_all%>%
   select(sensitivity, Month, name)%>%
-  mutate(Test=ifelse(name=="antigen_result", "sensitivity", NA))%>%
+  mutate(Performance=ifelse(name=="antigen_result", "Sensitivity", NA))%>%
   rename(Test_result=sensitivity)
 
 month_spec<-month_all%>%
   select(specificity, Month, name)%>%
-  mutate(Test=ifelse(name=="antigen_result", "specificity", NA))%>%
+  mutate(Performance=ifelse(name=="antigen_result", "Specificity", NA))%>%
   rename(Test_result=specificity)
 
 spec_sens<-rbind(month_sens, month_spec)
 
-spec_sens<-spec_sens%>%
-  ifelse()
+#Making sensitivity and specificity wide - no longer needed
+# sens_wide<-spec_sens%>%
+#   filter(Performance=="sensitivity")%>%
+#   rename(sens=Test_result)
+# 
+# spec_wide<-spec_sens%>%
+#   filter(Performance=="specificity")%>%
+#   rename(spec=Test_result)
+# 
+# sens_spec_wide<-inner_join(sens_wide, spec_wide, by="Month")
+
+#Separate plots of sensitivity and specificity
 sensitivity.line<-ggplot(data=month_sens, aes(x=Month, y=Test_result, group=1))+
   geom_line()+
   geom_point()
@@ -1090,14 +1100,122 @@ specificity.line<-ggplot(data=month_spec, aes(x=Month, y=Test_result, group=1))+
   geom_line()+
   geom_point()
 
-all.line<-ggplot(data=spec_sens, aes(x=Month, y=Test_result, group=Test))+
-  geom_line(aes(linetype=Test))+
-  geom_point()
+#Combined line graph of sensitivity and specificity
+spec_sens<-spec_sens%>%
+  mutate(Performance=fct_rev(Performance))
+all.line<-ggplot(data=spec_sens, aes(x=Month, y=Test_result, group=Performance))+
+  geom_line(aes(color=Performance))+
+  scale_color_manual(values=c('Blue','Red'))+
+  geom_point()+
+  xlab("Date")+
+  ylab("Performance")+
+  theme_minimal()
 
-all.line<-ggplot(data=spec_sens, aes(x=Month))+
-  geom_line(aes(y=Test_result))
 
+ggplot(sens_spec_wide,aes(x=Month))+
+  ggplot(sens_spec_wide,aes(x=Month))+
+  geom_line(aes(y=sens),color="blue")+
+  geom_line(aes(y=spec),color="red") 
 
+#Supplementary table
+#Table by age groups in 20 yr intervals
+main<-main%>%
+  mutate(agegrp_20=case_when(Age<20 ~ "Under 20 yrs",
+                             Age>=20 & Age <40 ~ "Between 20 and 40 yrs",
+                             Age>=40 & Age<60 ~ "Between 40 and 60 yrs",
+                             Age>=60 & Age<80 ~ "Between 60 and 80 yrs",
+                             Age>=80 ~ "Over 80 yrs"))
+
+under_20<-main%>%
+  filter(agegrp_20=="Under 20 yrs")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(age_grp="Under 20 yrs")
+
+btwn_20_40<-main%>%
+  filter(agegrp_20=="Between 20 and 40 yrs")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(age_grp="Between 20 and 40 yrs")
+
+btwn_40_60<-main%>%
+  filter(agegrp_20=="Between 40 and 60 yrs")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(age_grp="Between 40 and 60 yrs")
+
+btwn_60_80<-main%>%
+  filter(agegrp_20=="Between 60 and 80 yrs")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(age_grp="Between 60 and 80 yrs")
+
+over_80<-main%>%
+  filter(agegrp_20=="Over 80 yrs")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(age_grp="Over 80 yrs")
+
+age_grp_all=rbind(under_20, btwn_20_40, btwn_40_60, btwn_60_80, over_80)
+
+age_grp_all<-age_grp_all%>%
+  ungroup()%>%
+  mutate(age_grp=as.factor(age_grp))%>%
+  mutate(age_grp=age_grp, levels=c(
+    "Under 20 yrs",
+    "Between 20 and 40 yrs",
+    "Between 40 and 60 yrs",
+    "Between 60 and 80 yrs",
+    "Over 80 yrs"
+  ))
+age_grp_all$age_grp <- factor(age_grp_all$age_grp, levels=c(
+  "Under 20 yrs",
+  "Between 20 and 40 yrs",
+  "Between 40 and 60 yrs",
+  "Between 60 and 80 yrs",
+  "Over 80 yrs"))
+
+agegrp_20_sens<-age_grp_all%>%
+  select(sensitivity, age_grp, name)%>%
+  mutate(Test=ifelse(name=="antigen_result", "sensitivity", NA))%>%
+  rename(Test_result=sensitivity)
+
+agegrp_20_spec<-age_grp_all%>%
+  select(specificity, age_grp, name)%>%
+  mutate(Test=ifelse(name=="antigen_result", "specificity", NA))%>%
+  rename(Test_result=specificity)
+
+age_20_spec_sens<-rbind(agegrp_20_sens, agegrp_20_spec)
 
 #####Lab data####
 lab_data<-lab_data%>%
@@ -1323,4 +1441,50 @@ BinomCI(10933,29329,
 BinomCI(414535,416533,
         conf.level = 0.95,
         method = "clopper-pearson")
+
+#Age groups in 20 years
+#Under 20 years
+#sensitivity
+BinomCI(2000,7414,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+#specificity
+BinomCI(99938,100186,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+#Between 20 and 40 years
+#sensitivity
+BinomCI(10142,33567,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+#specificity
+BinomCI(403557, 404752,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+#Between 60 and 80 years
+#sensitivity
+BinomCI(1998, 6266,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+#specificity
+BinomCI(70053, 70341,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+#Over 80 years
+#sensitivity
+BinomCI(209, 556,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+#specificity
+BinomCI(5037,5059,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
 
