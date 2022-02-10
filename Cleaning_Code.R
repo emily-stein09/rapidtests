@@ -805,7 +805,7 @@ main<-readRDS("final.dataset.RDS")
 
 ####TABLES AND ANALYSES####
 #Table 1
-table1<-merged.data3%>%
+table1<-main%>%
   select(PatientID, Age, Gender, racecat, new_racecat, Ethnicity)%>%
   distinct()%>%
   select(-PatientID)
@@ -816,7 +816,7 @@ table1<-tbl_summary(table1,
 table1
 
 #Table 2, disease characteristics by testing result
-table2<-merged.data3%>%
+table2<-main%>%
   select(Age, Gender, racecat, Symptomatic, Symptomatic_new, Vax_rec, Fully_vax, antigen_result, Variant, Updated_Date)
 
 table2<-tbl_summary(table2,
@@ -1068,18 +1068,20 @@ month_all$Month <- factor(month_all$Month, levels=c(
   "September 2021",
   "October 2021"))
 
-month_sens=month_all%>%
+month_sens<-month_all%>%
   select(sensitivity, Month, name)%>%
   mutate(Test=ifelse(name=="antigen_result", "sensitivity", NA))%>%
   rename(Test_result=sensitivity)
 
-month_spec=month_all%>%
+month_spec<-month_all%>%
   select(specificity, Month, name)%>%
   mutate(Test=ifelse(name=="antigen_result", "specificity", NA))%>%
   rename(Test_result=specificity)
 
 spec_sens<-rbind(month_sens, month_spec)
 
+spec_sens<-spec_sens%>%
+  ifelse()
 sensitivity.line<-ggplot(data=month_sens, aes(x=Month, y=Test_result, group=1))+
   geom_line()+
   geom_point()
@@ -1091,6 +1093,9 @@ specificity.line<-ggplot(data=month_spec, aes(x=Month, y=Test_result, group=1))+
 all.line<-ggplot(data=spec_sens, aes(x=Month, y=Test_result, group=Test))+
   geom_line(aes(linetype=Test))+
   geom_point()
+
+all.line<-ggplot(data=spec_sens, aes(x=Month))+
+  geom_line(aes(y=Test_result))
 
 
 
