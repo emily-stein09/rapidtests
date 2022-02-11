@@ -1108,14 +1108,432 @@ all.line<-ggplot(data=spec_sens, aes(x=Month, y=Test_result, group=Performance))
   scale_color_manual(values=c('Blue','Red'))+
   geom_point()+
   xlab("Date")+
-  ylab("Performance")+
+  ylab("Performance (%)") + 
+  theme(axis.text.x = element_text(size = 11))+
+  scale_x_discrete(guide = guide_axis(check.overlap = TRUE))+
   theme_minimal()
 
+####Figure 2: Vaccination status spec sens over time####
+#Fully vaccinated
+april_2021<-full_vax%>%
+  filter(Updated_Date=="April 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="April 2021")
 
-ggplot(sens_spec_wide,aes(x=Month))+
-  ggplot(sens_spec_wide,aes(x=Month))+
-  geom_line(aes(y=sens),color="blue")+
-  geom_line(aes(y=spec),color="red") 
+may_2021<-full_vax%>%
+  filter(Updated_Date=="May 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="May 2021")
+
+june_2021<-full_vax%>%
+  filter(Updated_Date=="June 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="June 2021")
+
+july_2021<-full_vax%>%
+  filter(Updated_Date=="July 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="July 2021")
+
+august_2021<-full_vax%>%
+  filter(Updated_Date=="August 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="August 2021")
+
+
+september_2021<-full_vax%>%
+  filter(Updated_Date=="September 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="September 2021")
+
+october_2021<-full_vax%>%
+  filter(Updated_Date=="October 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="October 2021")
+
+full_vax_month_all<-rbind(april_2021, may_2021, june_2021, july_2021, august_2021, september_2021, october_2021)
+
+full_vax_month_all<-full_vax_month_all%>%
+  ungroup()%>%
+  mutate(Month=as.factor(Month))%>%
+  mutate(Month=Month, levels=c(
+    "April 2021",
+    "May 2021",
+    "June 2021",
+    "July 2021",
+    "August 2021",
+    "September 2021",
+    "October 2021"))
+full_vax_month_all$Month <- factor(full_vax_month_all$Month, levels=c(
+ "April 2021",
+  "May 2021",
+  "June 2021",
+  "July 2021",
+  "August 2021",
+  "September 2021",
+  "October 2021"))
+
+full_vax_month_sens<-full_vax_month_all%>%
+  select(sensitivity, Month, name)%>%
+  mutate(Performance=ifelse(name=="antigen_result", "Sensitivity", NA))%>%
+  rename(Test_result=sensitivity)
+
+full_vax_month_spec<-full_vax_month_all%>%
+  select(specificity, Month, name)%>%
+  mutate(Performance=ifelse(name=="antigen_result", "Specificity", NA))%>%
+  rename(Test_result=specificity)
+
+full_vax_spec_sens<-rbind(full_vax_month_sens, full_vax_month_spec)
+
+#Combined line graph of sensitivity and specificity
+full_vax_spec_sens<-full_vax_spec_sens%>%
+  mutate(Performance=fct_rev(Performance))
+
+full_vax_time_graph<-ggplot(data=full_vax_spec_sens, aes(x=Month, y=Test_result, group=Performance))+
+  geom_line(aes(color=Performance))+
+  scale_color_manual(values=c('Blue','Red'))+
+  geom_point()+
+  xlab("Date")+
+  ylab("Performance (%)") + 
+  scale_x_discrete(guide = guide_axis(check.overlap = TRUE))+
+  ggtitle("A")+
+  theme_minimal()+
+  theme(plot.title = element_text(size = 20))
+
+#Partially vaccinated
+part_vax<-vax%>%
+  filter(vax_status=="Partially vaccinated")
+
+april_2021<-part_vax%>%
+  filter(Updated_Date=="April 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="April 2021")
+
+may_2021<-part_vax%>%
+  filter(Updated_Date=="May 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="May 2021")
+
+june_2021<-part_vax%>%
+  filter(Updated_Date=="June 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="June 2021")
+
+july_2021<-part_vax%>%
+  filter(Updated_Date=="July 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="July 2021")
+
+august_2021<-part_vax%>%
+  filter(Updated_Date=="August 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="August 2021")
+
+
+september_2021<-part_vax%>%
+  filter(Updated_Date=="September 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="September 2021")
+
+october_2021<-part_vax%>%
+  filter(Updated_Date=="October 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="October 2021")
+
+part_vax_month_all<-rbind(april_2021, may_2021, june_2021, july_2021, august_2021, september_2021, october_2021)
+
+part_vax_month_all<-part_vax_month_all%>%
+  ungroup()%>%
+  mutate(Month=as.factor(Month))%>%
+  mutate(Month=Month, levels=c(
+    "April 2021",
+    "May 2021",
+    "June 2021",
+    "July 2021",
+    "August 2021",
+    "September 2021",
+    "October 2021"))
+part_vax_month_all$Month <- factor(part_vax_month_all$Month, levels=c(
+  "April 2021",
+  "May 2021",
+  "June 2021",
+  "July 2021",
+  "August 2021",
+  "September 2021",
+  "October 2021"))
+
+part_vax_month_sens<-part_vax_month_all%>%
+  select(sensitivity, Month, name)%>%
+  mutate(Performance=ifelse(name=="antigen_result", "Sensitivity", NA))%>%
+  rename(Test_result=sensitivity)
+
+part_vax_month_spec<-part_vax_month_all%>%
+  select(specificity, Month, name)%>%
+  mutate(Performance=ifelse(name=="antigen_result", "Specificity", NA))%>%
+  rename(Test_result=specificity)
+
+part_vax_spec_sens<-rbind(part_vax_month_sens, part_vax_month_spec)
+
+#Combined line graph of sensitivity and specificity
+part_vax_spec_sens<-part_vax_spec_sens%>%
+  mutate(Performance=fct_rev(Performance))
+
+part_vax_time_graph<-ggplot(data=part_vax_spec_sens, aes(x=Month, y=Test_result, group=Performance))+
+  geom_line(aes(color=Performance))+
+  scale_color_manual(values=c('Blue','Red'))+
+  geom_point()+
+  xlab("Date")+
+  ylab("Performance (%)") + 
+  scale_x_discrete(guide = guide_axis(check.overlap = TRUE))+
+  ggtitle("B")+
+  theme_minimal()+
+  theme(plot.title = element_text(size = 20))
+
+#Unvaccinated
+un_vax<-vax%>%
+  filter(vax_status=="Unvaccinated")
+
+april_2021<-un_vax%>%
+  filter(Updated_Date=="April 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="April 2021")
+
+may_2021<-un_vax%>%
+  filter(Updated_Date=="May 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="May 2021")
+
+june_2021<-un_vax%>%
+  filter(Updated_Date=="June 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="June 2021")
+
+july_2021<-un_vax%>%
+  filter(Updated_Date=="July 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="July 2021")
+
+august_2021<-un_vax%>%
+  filter(Updated_Date=="August 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="August 2021")
+
+
+september_2021<-un_vax%>%
+  filter(Updated_Date=="September 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="September 2021")
+
+october_2021<-un_vax%>%
+  filter(Updated_Date=="October 2021")%>%
+  select(antigen_result)%>%
+  pivot_longer(cols=c(antigen_result))%>%
+  count(name, value)%>%
+  filter(!is.na(value))%>%
+  pivot_wider(names_from=value, values_from=n)%>%
+  group_by(name)%>%
+  mutate(sensitivity=(TP/(TP+FN))*100,
+         specificity=(TN/(TN+FP))*100)%>%
+  add_column(Month="October 2021")
+
+un_vax_month_all<-rbind(april_2021, may_2021, june_2021, july_2021, august_2021, september_2021, october_2021)
+
+un_vax_month_all<-un_vax_month_all%>%
+  ungroup()%>%
+  mutate(Month=as.factor(Month))%>%
+  mutate(Month=Month, levels=c(
+    "April 2021",
+    "May 2021",
+    "June 2021",
+    "July 2021",
+    "August 2021",
+    "September 2021",
+    "October 2021"))
+un_vax_month_all$Month <- factor(un_vax_month_all$Month, levels=c(
+  "April 2021",
+  "May 2021",
+  "June 2021",
+  "July 2021",
+  "August 2021",
+  "September 2021",
+  "October 2021"))
+
+un_vax_month_sens<-un_vax_month_all%>%
+  select(sensitivity, Month, name)%>%
+  mutate(Performance=ifelse(name=="antigen_result", "Sensitivity", NA))%>%
+  rename(Test_result=sensitivity)
+
+un_vax_month_spec<-un_vax_month_all%>%
+  select(specificity, Month, name)%>%
+  mutate(Performance=ifelse(name=="antigen_result", "Specificity", NA))%>%
+  rename(Test_result=specificity)
+
+un_vax_spec_sens<-rbind(un_vax_month_sens, un_vax_month_spec)
+
+#Combined line graph of sensitivity and specificity
+un_vax_spec_sens<-un_vax_spec_sens%>%
+  mutate(Performance=fct_rev(Performance))
+
+un_vax_time_graph<-ggplot(data=un_vax_spec_sens, aes(x=Month, y=Test_result, group=Performance))+
+  geom_line(aes(color=Performance))+
+  scale_color_manual(values=c('Blue','Red'))+
+  geom_point()+
+  xlab("Date")+
+  ylab("Performance (%)") + 
+  scale_x_discrete(guide = guide_axis(check.overlap = TRUE))+
+  ggtitle("C")+
+  theme_minimal()+
+  theme(plot.title = element_text(size = 20))
+
+##Arranging plots
+gridExtra::grid.arrange(blank, blank, blank, blank, blank, blank, full_vax_time_graph, part_vax_time_graph, un_vax_time_graph, blank, blank, blank, blank, blank, blank, 
+                        ncol=5, nrow = 3, 
+                        widths = c(0.5, 3.0, 3.0, 3.0, 0.5), heights = c(0.3, 1.5, 0.3))
+gridExtra::grid.arrange(full_vax_time_graph, part_vax_time_graph, un_vax_time_graph)
+
+###Adding rectangle
+grid::grid.rect(.5,.5,width=unit(.99,"npc"), height=unit(0.99,"npc"), 
+                gp=grid::gpar(lwd=3, fill=NA, col="black"))
 
 #Supplementary table
 #Table by age groups in 20 yr intervals
