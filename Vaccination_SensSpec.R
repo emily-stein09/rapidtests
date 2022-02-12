@@ -541,7 +541,7 @@ COVIDResults_confPCR <- COVIDResults_confPCR %>%
 saveRDS(COVIDResults_confPCR, file = "COVIDResults_confPCR.RDS")
 
 ###MERGING DATA####
-#Merge Visit data with covid results to get patient IDs for all results 
+#Merge Visit data with covid results to get patient IDs for all results
 merged.data1 <- inner_join(COVIDResults_confPCR, Visit, by="PatientID") #innerjoin because out of state covid results need to be filtered out (6994684)
 
 merged.data1<-merged.data1%>%
@@ -693,46 +693,34 @@ main<-main%>%
   mutate(vax_status=case_when(Fully_vax=="YES" ~ "Fully vaccinated",
                               Fully_vax!="YES"& updated_vax_rec=="YES" ~ "Partially vaccinated",
                               Fully_vax!="YES" & (updated_vax_rec=="NO"|updated_vax_rec=="NO RESPONSE") ~ "Unvaccinated"))
+#Creating age groups
+main<-main%>%
+  mutate(agegrp_20=case_when(Age<20 ~ "Under 20 yrs",
+                             Age>=20 & Age <40 ~ "Between 20 and 40 yrs",
+                             Age>=40 & Age<60 ~ "Between 40 and 60 yrs",
+                             Age>=60 & Age<80 ~ "Between 60 and 80 yrs",
+                             Age>=80 ~ "Over 80 yrs"))
 
 write_rds(main, "main_2.11.22.RDS")
 
 vax<-main%>%
   filter(Test_date >= "2021-04-01" & !is.na(vax_status))
 
-write_rds(main, "vax_2.11.22.RDS")
+write_rds(vax, "vax_2.11.22.RDS")
 ####Load cleaned final dataset####
 #Whole dataset
 main<-readRDS("main_2.11.22.RDS")
 #Vaccinated dataset
 vax<-readRDS("vax_2.11.22.RDS")
 ####TABLES AND ANALYSES####
-#Table 1
-table1<-main%>%
-  select(PatientID, Age, Gender, racecat, new_racecat, Ethnicity)%>%
-  distinct()%>%
-  select(-PatientID)
+#Table 1 (need to add race data)
+table1<-vax%>%
+  select(Age, Gender, Symptomatic, vax_status, antigen_result, agegrp_20)
+
 table1<-tbl_summary(table1,
-                    label=list(
-                      Age ~ "Age",
-                      racecat ~"Race categorizations: Madhura's coding"))
+                    by="vax_status")
+
 table1
-
-#Table 2, disease characteristics by testing result
-table2<-main%>%
-  select(Age, Gender, racecat, Symptomatic, Symptomatic_new, Vax_rec, Fully_vax, antigen_result, Variant, Updated_Date)
-
-table2<-tbl_summary(table2,
-                    by="antigen_result",
-                    label=list(
-                      Updated_Date ~ "Test date",
-                      racecat ~ "Madhura's coding",
-                      Symptomatic_new ~ "Symptomatic, assuming blank entries were not symptomatic",
-                      Vax_rec ~ "At least one dose received",
-                      Fully_vax ~ "Fully vaccinated"
-                    ))%>%
-  add_p()
-
-table2
 
 #table 3, disease characteristics by symptomatic status ASSUMING all those who don't have anythign entered were asymptomatic
 table3<-main%>%
@@ -1007,6 +995,9 @@ all.line<-ggplot(data=spec_sens, aes(x=Month, y=Test_result, group=Performance))
 
 ####Figure 2: Vaccination status spec sens over time####
 #Fully vaccinated
+full_vax<-vax%>%
+  filter(vax_status=="Fully vaccinated")
+
 april_2021<-full_vax%>%
   filter(Updated_Date=="April 2021")%>%
   select(antigen_result)%>%
@@ -1429,12 +1420,6 @@ grid::grid.rect(.5,.5,width=unit(.99,"npc"), height=unit(0.99,"npc"),
 
 #Supplementary table
 #Table by age groups in 20 yr intervals
-main<-main%>%
-  mutate(agegrp_20=case_when(Age<20 ~ "Under 20 yrs",
-                             Age>=20 & Age <40 ~ "Between 20 and 40 yrs",
-                             Age>=40 & Age<60 ~ "Between 40 and 60 yrs",
-                             Age>=60 & Age<80 ~ "Between 60 and 80 yrs",
-                             Age>=80 ~ "Over 80 yrs"))
 
 under_20<-main%>%
   filter(agegrp_20=="Under 20 yrs")%>%
