@@ -694,6 +694,14 @@ main<-main%>%
                               Fully_vax!="YES"& updated_vax_rec=="YES" ~ "Partially vaccinated",
                               Fully_vax!="YES" & (updated_vax_rec=="NO"|updated_vax_rec=="NO RESPONSE") ~ "Unvaccinated"))
 
+###Creating updated vax status in main dataset####
+main<-main%>%
+  rename(vax_status_raw=vax_status)
+
+main<-main%>%
+  mutate(vax_status=ifelse(Test_date<"2021-04-01", "N/A", vax_status_raw))
+
+###Saving cleaned final vax and main datasets####
 write_rds(main, "main_2.11.22.RDS")
 
 vax<-main%>%
@@ -706,15 +714,16 @@ main<-readRDS("main_2.11.22.RDS")
 #Vaccinated dataset
 vax<-readRDS("vax_2.11.22.RDS")
 ####TABLES AND ANALYSES####
-#Table 1
+#Table 1 clinical characteristics of patient for each testing visit
+#need to add race
+look<-main%>%
+  filter(Visit>1)
 table1<-main%>%
-  select(PatientID, Age, Gender, racecat, new_racecat, Ethnicity)%>%
-  distinct()%>%
-  select(-PatientID)
+  select(Age, agegrp_20, Gender, Symptomatic, vax_status, antigen_result)
 table1<-tbl_summary(table1,
-                    label=list(
-                      Age ~ "Age",
-                      racecat ~"Race categorizations: Madhura's coding"))
+                    by="antigen_result",
+                    percent = "row")%>%
+  add_overall()
 table1
 
 #Table 2, disease characteristics by testing result
@@ -1003,7 +1012,9 @@ all.line<-ggplot(data=spec_sens, aes(x=Month, y=Test_result, group=Performance))
   ylab("Performance (%)") + 
   theme(axis.text.x = element_text(size = 11))+
   scale_x_discrete(guide = guide_axis(check.overlap = TRUE))+
-  theme_minimal()
+  ggtitle("A")+
+  theme_minimal()+
+  theme(plot.title = element_text(size = 20))
 
 ####Figure 2: Vaccination status spec sens over time####
 #Fully vaccinated
@@ -1137,7 +1148,7 @@ full_vax_time_graph<-ggplot(data=full_vax_spec_sens, aes(x=Month, y=Test_result,
   xlab("Date")+
   ylab("Performance (%)") + 
   scale_x_discrete(guide = guide_axis(check.overlap = TRUE))+
-  ggtitle("A")+
+  ggtitle("B")+
   theme_minimal()+
   theme(plot.title = element_text(size = 20))
 
@@ -1275,7 +1286,7 @@ part_vax_time_graph<-ggplot(data=part_vax_spec_sens, aes(x=Month, y=Test_result,
   xlab("Date")+
   ylab("Performance (%)") + 
   scale_x_discrete(guide = guide_axis(check.overlap = TRUE))+
-  ggtitle("B")+
+  ggtitle("C")+
   theme_minimal()+
   theme(plot.title = element_text(size = 20))
 
@@ -1413,15 +1424,15 @@ un_vax_time_graph<-ggplot(data=un_vax_spec_sens, aes(x=Month, y=Test_result, gro
   xlab("Date")+
   ylab("Performance (%)") + 
   scale_x_discrete(guide = guide_axis(check.overlap = TRUE))+
-  ggtitle("C")+
+  ggtitle("D")+
   theme_minimal()+
   theme(plot.title = element_text(size = 20))
 
-##Arranging plots
-gridExtra::grid.arrange(blank, blank, blank, blank, blank, blank, full_vax_time_graph, part_vax_time_graph, un_vax_time_graph, blank, blank, blank, blank, blank, blank, 
-                        ncol=5, nrow = 3, 
-                        widths = c(0.5, 3.0, 3.0, 3.0, 0.5), heights = c(0.3, 1.5, 0.3))
-gridExtra::grid.arrange(full_vax_time_graph, part_vax_time_graph, un_vax_time_graph)
+##Arranging plots so main is on top, 3 vax on bottom.
+lay <- rbind(c(1,1,1),
+             c(2,3,4))
+
+gridExtra::grid.arrange(all.line, full_vax_time_graph, part_vax_time_graph, un_vax_time_graph, layout_matrix = lay)
 
 ###Adding rectangle
 grid::grid.rect(.5,.5,width=unit(.99,"npc"), height=unit(0.99,"npc"), 
@@ -1545,19 +1556,28 @@ CMD_ID<-CMD_ID%>%
 
 
 #Main includes Covid results and lab data
-CT_raw<-inner_join(CMD_ID, main, by="PatientID") #10243 matches
+#Creating dataset among those that had true pos or false neg results
+TP_FN<-main%>%
+  filter(antigen_result=="TP"|antigen_result=="FN")
+
+CT_raw<-inner_join(CMD_ID, TP_FN, by="PatientID") #10243 matches
 
 CT_clean<-CT_raw%>%
   mutate(lab_date=mdy(`Collection Date`))%>%
   mutate(timebtwn=difftime(Test_date, lab_date, units="days"))%>%
-  mutate(acceptable_time=ifelse(timebtwn<=7 & timebtwn>=-7, 1, 0))%>%
-  filter(acceptable_time==1 & Test!="COVID-19 Spike Total Ab" & antigen_result!="TN")%>%
+  mutate(acceptable_time=ifelse(timebtwn<0 & timebtwn>=-5, 1, 0))%>%
+  filter(acceptable_time==1 & Test!="COVID-19 Spike Total Ab")%>%
   mutate(antigen_result=as.factor(antigen_result))%>%
-  mutate(ct_result=as.numeric(`Num Res`))
+  mutate(ct_result=as.numeric(`Num Res`))%>%
+  distinct()
 
-CT_clean<-CT_clean%>%
-  filter(antigen_result!="TN")
+#Creating separate ORF gene dataset
+orf<-CT_clean%>%
+  filter(Test=="SARS CoV 2 ORF 1 Gene")%>%
+  distinct()
 
+egene<-CT_clean%>%
+  filter(Test=="SARS CoV 2 E Gene")
 #Table
 CT_table<-CT_clean%>%
   select(antigen_result, Test, ct_result)
@@ -1575,15 +1595,11 @@ figure4<-ggplot(CT_clean, aes(x=antigen_result, y=ct_result, color=)) +
 
 
 ###CT values by vaccination status####
-#CT clean values
-CT_vax<-CT_clean%>%
-  select(PatientID, ct_result, Test, antigen_result, Test_date)
+vax_ct<-CT_clean%>%
+  filter(!is.na(vax_status))
 
-vax<-vax%>%
-  select(-antigen_result)
-#Merge CT values and vax status by left join
-vax_ct<-inner_join(CT_vax, vax, by=c("PatientID","Test_date"))%>%
-  distinct()
+vax_orf<-orf%>%
+  filter(!is.na(vax_status))
 
 #Figure 2: Bodxplot of CT values by test results with vaccination status filled
 figure5<-ggplot(vax_ct, aes(x=antigen_result, y=ct_result, color=vax_status)) + 
@@ -1705,21 +1721,21 @@ BinomCI(138039, 138200 ,
 
 #Partially vaccinated
 #sensitivity
-BinomCI(636, 2117,
+BinomCI(646, 2162,
         conf.level = 0.95,
         method = "clopper-pearson")
 #specificity
-BinomCI(41153, 41221,
+BinomCI(42182, 42252,
         conf.level = 0.95,
         method = "clopper-pearson")
 
 #Unvaccinated
 #sensitivity
-BinomCI(3291, 13379,
+BinomCI(3282, 13335,
         conf.level = 0.95,
         method = "clopper-pearson")
 #specificity
-BinomCI(168215, 168497,
+BinomCI(167207, 167487,
         conf.level = 0.95,
         method = "clopper-pearson")
 
@@ -1797,4 +1813,23 @@ BinomCI(5037,5059,
         conf.level = 0.95,
         method = "clopper-pearson")
 
+##Sex
+#Male
+BinomCI(9961, 31585,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+#specificity
+BinomCI(319240,320191,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+#Female
+BinomCI(9648, 34822,
+        conf.level = 0.95,
+        method = "clopper-pearson")
+
+#specificity
+BinomCI(455943,457454,
+        conf.level = 0.95,
+        method = "clopper-pearson")
 
