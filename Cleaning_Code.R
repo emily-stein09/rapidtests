@@ -1586,13 +1586,67 @@ CT_table<-tbl_summary(CT_table,
                       by=antigen_result,
                       label=list(
                         ct_result ~ "Num Res"))
-#Figure: Boxplot of CT values by test results
+#Figure 2: Boxplot of CT values by test results
+orf<-orf%>%
+  mutate(Performance=ifelse(antigen_result=="FN", "PCR+/RT-", "PCR+/RT+"))
 
-figure4<-ggplot(CT_clean, aes(x=antigen_result, y=ct_result, color=)) + 
-  geom_boxplot(notch=TRUE) + 
+#Overall CT boxplot
+overall_ct<-ggplot(orf, aes(x=Performance, y=ct_result, color=Performance)) + 
+  scale_color_manual(values=c('Blue','Red'))+
+  geom_boxplot() + 
+  xlab("")+
+  ylab("PCR CT")+
   geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
-  facet_wrap("Test")
+  ggtitle("2A")+
+  theme_minimal()+
+  theme(legend.position = "none", plot.title = element_text(size = 20))
+#Vaccinated CT boxplot
+orf_fullvax<-orf%>%
+  filter(vax_status=="Fully vaccinated")
 
+full_vax_ct<-ggplot(orf_fullvax, aes(x=Performance, y=ct_result, color=Performance)) + 
+  scale_color_manual(values=c('Blue','Red'))+
+  geom_boxplot() + 
+  xlab("")+
+  ylab("PCR CT")+
+  geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
+  ggtitle("2B")+
+  theme_minimal()+
+  theme(legend.position = "none", plot.title = element_text(size = 20))
+#Partially vaccinated CT boxplot
+orf_partvax<-orf%>%
+  filter(vax_status=="Partially vaccinated")
+
+part_vax_ct<-ggplot(orf_partvax, aes(x=Performance, y=ct_result, color=Performance)) + 
+  scale_color_manual(values=c('Blue','Red'))+
+  geom_boxplot() + 
+  xlab("")+
+  ylab("PCR CT")+
+  geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
+  ggtitle("2B")+
+  theme_minimal()+
+  theme(legend.position = "none", plot.title = element_text(size = 20))
+
+#Unvaccinated CT boxplot
+orf_unvax<-orf%>%
+  filter(vax_status=="Unvaccinated")
+
+un_vax_ct<-ggplot(orf_partvax, aes(x=Performance, y=ct_result, color=Performance)) + 
+  scale_color_manual(values=c('Blue','Red'))+
+  geom_boxplot() + 
+  xlab("")+
+  ylab("PCR CT")+
+  geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
+  ggtitle("2C")+
+  theme_minimal()+
+  theme(legend.position = "none", plot.title = element_text(size = 20))
+
+#Figure 2: Boxplot of combined overall and vax CT boxplots
+##Arranging plots so main is on top, 3 vax on bottom.
+lay <- rbind(c(1,1,1),
+             c(2,3,4))
+
+gridExtra::grid.arrange(overall_ct, full_vax_ct, part_vax_ct, un_vax_ct, layout_matrix = lay)
 
 ###CT values by vaccination status####
 vax_ct<-CT_clean%>%
@@ -1601,7 +1655,7 @@ vax_ct<-CT_clean%>%
 vax_orf<-orf%>%
   filter(!is.na(vax_status))
 
-#Figure 2: Bodxplot of CT values by test results with vaccination status filled
+#Figure 2: Boxplot of CT values by test results
 figure5<-ggplot(vax_ct, aes(x=antigen_result, y=ct_result, color=vax_status)) + 
   geom_boxplot(notch=TRUE) + 
   geom_jitter(shape=16, position=position_jitter(0.2), alpha=0.2)+
