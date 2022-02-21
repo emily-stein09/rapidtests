@@ -716,8 +716,6 @@ vax<-readRDS("vax_2.11.22.RDS")
 ####TABLES AND ANALYSES####
 #Table 1 clinical characteristics of patient for each testing visit
 #need to add race
-look<-main%>%
-  filter(Visit>1)
 table1<-main%>%
   select(Age, agegrp_20, Gender, Symptomatic, vax_status, antigen_result)
 table1<-tbl_summary(table1,
